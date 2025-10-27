@@ -1,0 +1,59 @@
+# Ruby
+*.gem
+*.rbc
+.bundle
+.config
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/InstalledFiles
+/lib/bundler/man/
+/pkg/
+/rdoc/
+/spec/reports/
+/test/tmp/
+/test/version_tmp/
+/tmp/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.envrc
+
+# Version managers
+.ruby-version
+.ruby-gemset
+.rvmrc
+.tool-versions
+
+# Bundler
+Gemfile.lock
+/gemfiles/*.gemfile.lock
+/vendor/bundle/
+
+# Test artifacts
+/test/database_local.yml
+/test/reports/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+*.o
+*.so
+*.a
+*.log
+
+# Documentation
+/doc/
+/.yardoc/
+
+# Legacy/deprecated
+/travis/*.lock

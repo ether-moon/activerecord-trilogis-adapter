@@ -1,0 +1,28 @@
+ARG RUBY_VERSION=3.4.1
+FROM ruby:${RUBY_VERSION}-slim
+
+# Install dependencies
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    default-libmysqlclient-dev \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy Gemfile and install gems
+COPY Gemfile* ./
+COPY activerecord-trilogis-adapter.gemspec ./
+COPY lib/active_record/connection_adapters/trilogis/version.rb ./lib/active_record/connection_adapters/trilogis/
+
+RUN bundle config set --local path 'vendor/bundle' && \
+    bundle install --jobs 4 --retry 3
+
+# Copy application code
+COPY . .
+
+# Default command
+CMD ["bundle", "exec", "rake", "test"]

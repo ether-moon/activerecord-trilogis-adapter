@@ -1,0 +1,60 @@
+services:
+  mysql:
+    image: mysql:8.0.34
+    platform: linux/amd64
+    container_name: trilogis_test_db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-trilogis_adapter_test}
+      MYSQL_USER: ${MYSQL_USER:-trilogis}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_PASSWORD:-password}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - trilogis_network
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        RUBY_VERSION: ${RUBY_VERSION:-3.4.1}
+    container_name: trilogis_test_runner
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-trilogis_adapter_test}
+      MYSQL_USER: ${MYSQL_USER:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-password}
+      RAILS_ENV: test
+      RAILS_VERSION: ${RAILS_VERSION:-}
+    volumes:
+      - .:/app
+      - bundle_cache:/usr/local/bundle
+    working_dir: /app
+    command: bundle exec rake test
+    networks:
+      - trilogis_network
+
+volumes:
+  mysql_data:
+  bundle_cache:
+
+networks:
+  trilogis_network:
+    driver: bridge

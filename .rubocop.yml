@@ -1,0 +1,78 @@
+# frozen_string_literal: true
+
+plugins:
+  - rubocop-performance
+  - rubocop-rake
+
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: enable
+  Exclude:
+    - 'vendor/**/*'
+    - 'tmp/**/*'
+    - 'bin/**/*'
+
+Layout/LineLength:
+  Max: 120
+
+Style/Documentation:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+Metrics/BlockLength:
+  Exclude:
+    - 'test/**/*'
+    - 'Rakefile'
+    - '*.gemspec'
+
+Metrics/MethodLength:
+  Exclude:
+    - 'test/**/*'
+    - 'lib/active_record/connection_adapters/**/*'
+    - 'verify_implementation.rb'
+
+Metrics/AbcSize:
+  Exclude:
+    - 'test/**/*'
+    - 'lib/active_record/connection_adapters/**/*'
+
+Metrics/ClassLength:
+  Exclude:
+    - 'test/**/*'
+
+Lint/MissingSuper:
+  Enabled: false
+
+Lint/DuplicateBranch:
+  Enabled: false
+
+Style/ClassAndModuleChildren:
+  Enabled: false
+
+Style/OptionalBooleanParameter:
+  Enabled: false
+
+Naming/MethodName:
+  Enabled: false
+
+Naming/MethodParameterName:
+  Enabled: false
+
+Naming/PredicateMethod:
+  Enabled: false
+
+Naming/FileName:
+  Exclude:
+    - 'lib/activerecord-trilogis-adapter.rb'
+
+Metrics/ParameterLists:
+  Exclude:
+    - 'lib/active_record/connection_adapters/trilogis/spatial_column.rb'
+
+Gemspec/DevelopmentDependencies:
+  Enabled: false
