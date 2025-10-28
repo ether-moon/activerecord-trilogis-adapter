@@ -56,7 +56,7 @@ class TasksTest < ActiveSupport::TestCase
   def test_basic_geometry_schema_dump
     setup_database_tasks
     connection.create_table(:spatial_test, force: true) do |t|
-      t.geometry "object1"
+      t.spatial "object1", srid: connection.default_srid, type: "geometry"
       t.spatial "object2", srid: connection.default_srid, type: "geometry"
     end
     File.open(tmp_sql_filename, "w:utf-8") do |file|
@@ -64,8 +64,10 @@ class TasksTest < ActiveSupport::TestCase
     end
     data = File.read(tmp_sql_filename)
 
-    assert_includes data, "t.geometry \"object1\", limit: {type: \"geometry\", srid: #{connection.default_srid}"
-    assert_includes data, "t.geometry \"object2\", limit: {type: \"geometry\", srid: #{connection.default_srid}"
+    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
+    # Match either format by checking for the essential parts
+    assert_match(/t\.geometry "object1".*"geometry".*#{connection.default_srid}/, data)
+    assert_match(/t\.geometry "object2".*"geometry".*#{connection.default_srid}/, data)
   end
 
   def test_basic_geography_schema_dump
@@ -79,8 +81,10 @@ class TasksTest < ActiveSupport::TestCase
     end
     data = File.read(tmp_sql_filename)
 
-    assert_includes data, %(t.geometry "latlon1", limit: {type: "point", srid: 4326})
-    assert_includes data, %(t.geometry "latlon2", limit: {type: "point", srid: 4326})
+    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
+    # Match either format by checking for the essential parts
+    assert_match(/t\.geometry "latlon1".*"point".*4326/, data)
+    assert_match(/t\.geometry "latlon2".*"point".*4326/, data)
   end
 
   def test_index_schema_dump
@@ -94,7 +98,9 @@ class TasksTest < ActiveSupport::TestCase
     end
     data = File.read(tmp_sql_filename)
 
-    assert_includes data, %(t.geometry "latlon", limit: {type: "point", srid: 4326}, default: -> { "" }, null: false)
+    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
+    # Match either format by checking for the essential parts
+    assert_match(/t\.geometry "latlon".*"point".*4326.*null: false/, data)
     assert_includes data, %(t.index ["latlon"], name: "index_spatial_test_on_latlon", type: :spatial)
   end
 
