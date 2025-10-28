@@ -3,6 +3,16 @@
 module ActiveRecord
   module Type
     class Spatial < ActiveModel::Type::Value
+      # Geographic SRIDs that use latitude-longitude coordinate system
+      # These need special handling with RGeo::Geographic factory
+      GEOGRAPHIC_SRIDS = [
+        4326, # WGS 84 (GPS)
+        4269, # NAD83
+        4267, # NAD27
+        4258, # ETRS89
+        4019  # Unknown datum based upon the GRS 1980 ellipsoid
+      ].freeze
+
       attr_reader :geo_type, :srid
 
       def initialize(sql_type = "geometry")
@@ -16,7 +26,16 @@ module ActiveRecord
 
       # Class method for parsing SQL type
       def self.parse_sql_type(sql_type)
+        original_sql_type = sql_type.to_s
         sql_type = sql_type.to_s.downcase
+
+        # Only parse known spatial types
+        # For non-spatial types, return them unchanged
+        spatial_types = %w[geometry point linestring polygon multipoint multilinestring multipolygon geometrycollection]
+
+        # Check if it's a spatial type
+        base_type = sql_type.split("(").first
+        return [original_sql_type, 0] unless spatial_types.include?(base_type)
 
         # Extract geometry type and SRID from SQL type
         # Examples: "geometry", "point", "linestring", "geometry(Point,4326)"
@@ -121,8 +140,8 @@ module ActiveRecord
           srid = Regexp.last_match(1).to_i
           wkt = Regexp.last_match(2)
 
-          # Use Geographic factory for SRID 4326 (WGS84)
-          geo_factory = if srid == 4326
+          # Use Geographic factory for geographic SRIDs
+          geo_factory = if geographic_srid?(srid)
                           RGeo::Geographic.spherical_factory(srid: srid)
                         else
                           RGeo::Cartesian.preferred_factory(
@@ -173,8 +192,8 @@ module ActiveRecord
           wkb_data = binary_string[4..]
 
           # Create factory with the correct SRID
-          # Use Geographic factory for SRID 4326 (WGS84)
-          geo_factory = if srid == 4326
+          # Use Geographic factory for geographic SRIDs
+          geo_factory = if geographic_srid?(srid)
                           RGeo::Geographic.spherical_factory(srid: srid)
                         else
                           RGeo::Cartesian.preferred_factory(
@@ -199,6 +218,11 @@ module ActiveRecord
 
         # Support GeoJSON-like hashes
         RGeo::GeoJSON.decode(hash.to_json, geo_factory: factory) if hash["type"] && hash["coordinates"]
+      end
+
+      # Check if a SRID is geographic (uses latitude-longitude coordinate system)
+      def geographic_srid?(srid)
+        GEOGRAPHIC_SRIDS.include?(srid)
       end
 
       def factory

@@ -94,8 +94,13 @@ module ActiveRecord
       ].freeze
 
       # Class method to check if a type is spatial
-      def self.spatial_column_options(type)
+      def self.spatial_type?(type)
         SPATIAL_COLUMN_TYPES.include?(type.to_s.downcase)
+      end
+
+      # Backward-compatible alias
+      class << self
+        alias_method :spatial_column_options, :spatial_type?
       end
 
       def initialize(...)

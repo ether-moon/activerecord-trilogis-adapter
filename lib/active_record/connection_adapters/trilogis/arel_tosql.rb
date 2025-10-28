@@ -3,6 +3,13 @@
 module Arel
   module Visitors
     class Trilogis < Arel::Visitors::MySQL
+      attr_reader :connection
+
+      def initialize(connection)
+        super
+        @connection = connection
+      end
+
       # MySQL spatial function mappings
       SPATIAL_FUNCTIONS = {
         "st_contains" => "ST_Contains",
@@ -46,8 +53,8 @@ module Arel
         wkt = node.as_text
 
         # MySQL ST_GeomFromText supports axis-order option for geographic SRIDs
-        # This ensures longitude-latitude order for SRID 4326 (WGS84)
-        if srid == 4326
+        # This ensures longitude-latitude order for all geographic SRIDs
+        if connection.send(:geographic_srid?, srid)
           collector << "ST_GeomFromText('#{wkt}', #{srid}, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
         else
           collector << "ST_GeomFromText('#{wkt}', #{srid})"
@@ -59,8 +66,8 @@ module Arel
         if wkt =~ /^SRID=(\d+);(.+)$/i
           srid = Regexp.last_match(1).to_i
           clean_wkt = Regexp.last_match(2)
-          # Use axis-order for geographic SRID
-          if srid == 4326
+          # Use axis-order for geographic SRIDs
+          if connection.send(:geographic_srid?, srid)
             collector << "ST_GeomFromText('#{clean_wkt}', #{srid}, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
           else
             collector << "ST_GeomFromText('#{clean_wkt}', #{srid})"
@@ -110,12 +117,12 @@ module Arel
           if value.match?(/^[A-Z]/)
             visit_wkt_string(value, collector)
           else
-            # Regular string literal
-            collector << quote(value)
+            # Regular string literal - use connection to quote or fallback to inspect
+            collector << (connection ? connection.quote(value) : value.inspect)
           end
         else
-          # For numeric or other values
-          collector << quote(value)
+          # For numeric or other values - use connection to quote or fallback to inspect
+          collector << (connection ? connection.quote(value) : value.inspect)
         end
       end
 
