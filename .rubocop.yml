@@ -12,6 +12,7 @@ AllCops:
     - 'vendor/**/*'
     - 'tmp/**/*'
     - 'bin/**/*'
+    - '.ruby-lsp/**/*'
 
 Layout/LineLength:
   Max: 120
