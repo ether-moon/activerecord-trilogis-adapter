@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(a unix socket: TRILOGY_UNSUPPORTED\"\n\nChanges:\n- Use docker run instead of services container\n- Set --default-authentication-plugin=mysql_native_password\n- Update environment variables to match test/database.yml (MYSQL_*)\n- Simplify database setup (no longer need ALTER USER)\n\nThe Trilogy adapter doesn''t support caching_sha2_password over TCP without\nTLS, so we configure MySQL to use mysql_native_password from the start.\nEOF\n)\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

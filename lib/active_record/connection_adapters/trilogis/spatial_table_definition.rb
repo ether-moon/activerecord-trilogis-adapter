@@ -55,6 +55,9 @@ module ActiveRecord
 
         # Override column to handle spatial types
         def column(name, type, index: nil, **options)
+          # Extract spatial-specific options before calling super
+          srid = options.delete(:srid)
+
           super
 
           # Add spatial index if requested
