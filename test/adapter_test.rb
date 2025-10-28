@@ -12,10 +12,13 @@ class AdapterTest < ActiveSupport::TestCase
   end
 
   def test_spatial_types_registered
+    connection = ActiveRecord::Base.connection
+    type_map = connection.send(:type_map)
+
     %i[geometry point linestring polygon].each do |type|
-      assert(ActiveRecord::Type.registry.send(:registrations).any? do |r|
-        r.send(:matches?, type, :trilogis)
-      end)
+      spatial_type = type_map.lookup(type.to_s)
+      assert spatial_type.is_a?(ActiveRecord::Type::Spatial),
+             "Expected #{type} to be registered as Spatial type, got #{spatial_type.class}"
     end
   end
 

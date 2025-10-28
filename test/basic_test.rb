@@ -17,7 +17,7 @@ class BasicTest < ActiveSupport::TestCase
     collector = Arel::Collectors::PlainString.new
     visitor.accept(node, collector)
     axis_order = ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT
-    assert_equal "ST_GeomFromText('POINT (1.0 2.0)', #{axis_order})", collector.value
+    assert_equal "ST_GeomFromText('POINT (1.0 2.0)', 0, #{axis_order})", collector.value
   end
 
   def test_set_and_get_point
