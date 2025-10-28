@@ -3,7 +3,7 @@
 require "test_helper"
 
 class DDLTest < ActiveSupport::TestCase
-  def test_spatial_column_options
+  def test_spatial_type?
     %i[
       geometry
       geometrycollection
@@ -14,9 +14,30 @@ class DDLTest < ActiveSupport::TestCase
       point
       polygon
     ].each do |type|
-      refute_nil ActiveRecord::ConnectionAdapters::TrilogisAdapter.spatial_column_options(type),
-                 "spatial_column_options should not be nil for type: #{type}"
+      assert ActiveRecord::ConnectionAdapters::TrilogisAdapter.spatial_type?(type),
+             "spatial_type? should return true for type: #{type}"
     end
+
+    # Test non-spatial types
+    %i[string integer datetime].each do |type|
+      refute ActiveRecord::ConnectionAdapters::TrilogisAdapter.spatial_type?(type),
+             "spatial_type? should return false for non-spatial type: #{type}"
+    end
+  end
+
+  def test_spatial_column_options_alias
+    # Test backward compatibility - spatial_column_options should be aliased to spatial_type?
+    assert_equal(
+      ActiveRecord::ConnectionAdapters::TrilogisAdapter.spatial_type?(:point),
+      ActiveRecord::ConnectionAdapters::TrilogisAdapter.spatial_column_options(:point),
+      "spatial_column_options should be aliased to spatial_type? for backward compatibility"
+    )
+
+    assert_equal(
+      ActiveRecord::ConnectionAdapters::TrilogisAdapter.spatial_type?(:string),
+      ActiveRecord::ConnectionAdapters::TrilogisAdapter.spatial_column_options(:string),
+      "spatial_column_options should be aliased to spatial_type? for backward compatibility"
+    )
   end
 
   def test_type_to_sql

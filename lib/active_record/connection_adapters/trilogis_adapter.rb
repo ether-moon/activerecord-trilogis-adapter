@@ -100,7 +100,7 @@ module ActiveRecord
 
       # Backward-compatible alias
       class << self
-        alias_method :spatial_column_options, :spatial_type?
+        alias spatial_column_options spatial_type?
       end
 
       def initialize(...)
