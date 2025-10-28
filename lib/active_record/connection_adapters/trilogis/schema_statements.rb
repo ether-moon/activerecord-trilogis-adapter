@@ -43,21 +43,29 @@ module ActiveRecord
         # Override columns to properly handle spatial column metadata
         def columns(table_name)
           column_definitions(table_name).map do |field|
-            sql_type = field.fetch(:Type)
+            # MySQL 8.0 may return lowercase keys, normalize to symbols
+            field_name = field[:Field] || field[:field] || field["Field"] || field["field"]
+            sql_type = field[:Type] || field[:type] || field["Type"] || field["type"]
             type_metadata = fetch_type_metadata(sql_type)
 
             if spatial_type?(sql_type)
               # Get spatial metadata (SRID, etc.) from information schema
-              spatial_info = spatial_column_info(table_name).get(field[:Field], sql_type)
+              spatial_info = spatial_column_info(table_name).get(field_name, sql_type)
+
+              field_default = field[:Default] || field[:default] || field["Default"] || field["default"]
+              field_null = field[:Null] || field[:null] || field["Null"] || field["null"]
+              field_extra = field[:Extra] || field[:extra] || field["Extra"] || field["extra"]
+              field_collation = field[:Collation] || field[:collation] || field["Collation"] || field["collation"]
+              field_comment = field[:Comment] || field[:comment] || field["Comment"] || field["comment"]
 
               SpatialColumn.new(
-                field[:Field],
-                field[:Default],
+                field_name,
+                field_default,
                 type_metadata,
-                field[:Null] == "YES",
-                field[:Extra],
-                collation: field[:Collation],
-                comment: field[:Comment].presence,
+                field_null == "YES",
+                field_extra,
+                collation: field_collation,
+                comment: field_comment.presence,
                 spatial_info: spatial_info
               )
             else
@@ -68,20 +76,28 @@ module ActiveRecord
 
         # Override to properly handle spatial columns creation
         def new_column_from_field(table_name, field)
-          sql_type = field[:Type]
+          # MySQL 8.0 may return lowercase keys, normalize to symbols
+          field_name = field[:Field] || field[:field] || field["Field"] || field["field"]
+          sql_type = field[:Type] || field[:type] || field["Type"] || field["type"]
 
           if spatial_type?(sql_type)
             type_metadata = fetch_type_metadata(sql_type)
-            spatial_info = spatial_column_info(table_name).get(field[:Field], sql_type)
+            spatial_info = spatial_column_info(table_name).get(field_name, sql_type)
+
+            field_default = field[:Default] || field[:default] || field["Default"] || field["default"]
+            field_null = field[:Null] || field[:null] || field["Null"] || field["null"]
+            field_extra = field[:Extra] || field[:extra] || field["Extra"] || field["extra"]
+            field_collation = field[:Collation] || field[:collation] || field["Collation"] || field["collation"]
+            field_comment = field[:Comment] || field[:comment] || field["Comment"] || field["comment"]
 
             SpatialColumn.new(
-              field[:Field],
-              field[:Default],
+              field_name,
+              field_default,
               type_metadata,
-              field[:Null] == "YES",
-              field[:Extra],
-              collation: field[:Collation],
-              comment: field[:Comment].presence,
+              field_null == "YES",
+              field_extra,
+              collation: field_collation,
+              comment: field_comment.presence,
               spatial_info: spatial_info
             )
           else
