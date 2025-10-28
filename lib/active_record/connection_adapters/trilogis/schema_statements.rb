@@ -40,42 +40,11 @@ module ActiveRecord
           indexes
         end
 
-        # Override columns to properly handle spatial column metadata
-        def columns(table_name)
-          column_definitions(table_name).map do |field|
-            # MySQL 8.0 may return lowercase keys, normalize to symbols
-            field_name = field[:Field] || field[:field] || field["Field"] || field["field"]
-            sql_type = field[:Type] || field[:type] || field["Type"] || field["type"]
-            type_metadata = fetch_type_metadata(sql_type)
-
-            if spatial_type?(sql_type)
-              # Get spatial metadata (SRID, etc.) from information schema
-              spatial_info = spatial_column_info(table_name).get(field_name, sql_type)
-
-              field_default = field[:Default] || field[:default] || field["Default"] || field["default"]
-              field_null = field[:Null] || field[:null] || field["Null"] || field["null"]
-              field_extra = field[:Extra] || field[:extra] || field["Extra"] || field["extra"]
-              field_collation = field[:Collation] || field[:collation] || field["Collation"] || field["collation"]
-              field_comment = field[:Comment] || field[:comment] || field["Comment"] || field["comment"]
-
-              SpatialColumn.new(
-                field_name,
-                field_default,
-                type_metadata,
-                field_null == "YES",
-                field_extra,
-                collation: field_collation,
-                comment: field_comment.presence,
-                spatial_info: spatial_info
-              )
-            else
-              new_column_from_field(table_name, field)
-            end
-          end
-        end
+        # Override columns to use parent's implementation but enhance spatial columns
+        # DO NOT override - let parent class handle all column creation
 
         # Override to properly handle spatial columns creation
-        def new_column_from_field(table_name, field)
+        def new_column_from_field(table_name, field, _definitions = nil)
           # MySQL 8.0 may return lowercase keys, normalize to symbols
           field_name = field[:Field] || field[:field] || field["Field"] || field["field"]
           sql_type = field[:Type] || field[:type] || field["Type"] || field["type"]
