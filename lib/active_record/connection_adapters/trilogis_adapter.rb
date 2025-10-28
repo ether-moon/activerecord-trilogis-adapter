@@ -79,12 +79,19 @@ module ActiveRecord
       DEFAULT_SRID = 0
 
       # MySQL 8.0+ supports axis-order option for ST_GeomFromText/ST_GeomFromWKB
-      # This is critical for geographic coordinate systems (SRID 4326) to interpret
-      # coordinates in longitude-latitude order instead of latitude-longitude
+      # This is critical for geographic coordinate systems to interpret coordinates
+      # in longitude-latitude order instead of MySQL's default latitude-longitude
       AXIS_ORDER_LONG_LAT = "'axis-order=long-lat'"
 
-      # Geographic SRID (WGS84)
-      GEOGRAPHIC_SRID = 4326
+      # Common geographic SRIDs that use latitude-longitude by default in MySQL 8.0
+      # These need axis-order parameter to work with standard GIS longitude-latitude format
+      GEOGRAPHIC_SRIDS = [
+        4326, # WGS 84 (GPS)
+        4269, # NAD83
+        4267, # NAD27
+        4258, # ETRS89
+        4019  # Unknown datum based upon the GRS 1980 ellipsoid
+      ].freeze
 
       # Class method to check if a type is spatial
       def self.spatial_column_options(type)
@@ -151,15 +158,14 @@ module ActiveRecord
         if value.is_a?(RGeo::Feature::Instance)
           srid = value.srid || DEFAULT_SRID
 
-          # For SRID 4326 (geographic), we MUST use ST_GeomFromText with axis-order parameter
-          # because ST_GeomFromWKB does NOT support axis-order and will interpret coordinates
-          # in MySQL's default latitude-longitude order, which is opposite of GIS standards
-          if srid == GEOGRAPHIC_SRID
-            wkt = value.as_text
-            "ST_GeomFromText('#{wkt}', #{srid}, #{AXIS_ORDER_LONG_LAT})"
+          # For geographic SRIDs, use axis-order parameter to ensure longitude-latitude order
+          # MySQL 8.0 defaults to latitude-longitude for geographic SRS, but GIS tools use long-lat
+          # ST_GeomFromWKB DOES support axis-order parameter in MySQL 8.0+
+          wkb_hex = RGeo::WKRep::WKBGenerator.new(hex_format: true, little_endian: true).generate(value)
+          if geographic_srid?(srid)
+            "ST_GeomFromWKB(0x#{wkb_hex}, #{srid}, #{AXIS_ORDER_LONG_LAT})"
           else
-            # For other SRIDs, WKB is fine and more efficient
-            wkb_hex = RGeo::WKRep::WKBGenerator.new(hex_format: true, little_endian: true).generate(value)
+            # For projected SRIDs (like 3857), no axis-order needed - uses cartesian X,Y
             "ST_GeomFromWKB(0x#{wkb_hex}, #{srid})"
           end
         else
@@ -197,6 +203,11 @@ module ActiveRecord
         else
           value
         end
+      end
+
+      # Check if a SRID is geographic (uses latitude-longitude coordinate system)
+      def geographic_srid?(srid)
+        GEOGRAPHIC_SRIDS.include?(srid)
       end
 
       # Override type_map to include spatial types

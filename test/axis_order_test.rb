@@ -19,9 +19,9 @@ class AxisOrderTest < ActiveSupport::TestCase
 
     quoted = @connection.quote(point)
 
-    # For SRID 4326, should use ST_GeomFromText with axis-order
-    # (ST_GeomFromWKB doesn't support axis-order parameter in MySQL 8.0)
-    assert_match(/ST_GeomFromText/, quoted)
+    # For SRID 4326, should use ST_GeomFromWKB with axis-order
+    # ST_GeomFromWKB DOES support axis-order parameter in MySQL 8.0+
+    assert_match(/ST_GeomFromWKB/, quoted)
     assert_match(/4326/, quoted) # SRID should be included
     assert_match(/'axis-order=long-lat'/, quoted) # axis-order should be included
   end
