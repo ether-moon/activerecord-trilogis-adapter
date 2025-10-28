@@ -61,10 +61,6 @@ module ActiveRecord
     class TrilogisAdapter < TrilogyAdapter
       ADAPTER_NAME = "Trilogis"
 
-      # MySQL 8.0+ requires explicit axis order for geographic coordinates
-      # to maintain long-lat (x-y) order instead of lat-long (y-x)
-      AXIS_ORDER_LONG_LAT = "'axis-order=long-lat'"
-
       include Trilogis::SchemaStatements
 
       # MySQL spatial data types
@@ -81,8 +77,19 @@ module ActiveRecord
 
       # Default SRID for MySQL
       DEFAULT_SRID = 0
+
+      # MySQL 8.0+ supports axis-order option for ST_GeomFromText/ST_GeomFromWKB
+      # This is critical for geographic coordinate systems (SRID 4326) to interpret
+      # coordinates in longitude-latitude order instead of latitude-longitude
+      AXIS_ORDER_LONG_LAT = "'axis-order=long-lat'"
+
       # Geographic SRID (WGS84)
       GEOGRAPHIC_SRID = 4326
+
+      # Class method to check if a type is spatial
+      def self.spatial_column_options(type)
+        SPATIAL_COLUMN_TYPES.include?(type.to_s.downcase)
+      end
 
       def initialize(...)
         super
@@ -101,7 +108,20 @@ module ActiveRecord
       def supports_spatial?
         # MySQL 5.7.6+ supports spatial indexes and functions
         # MariaDB has different spatial support, so we exclude it for now
-        !mariadb? && version >= "5.7.6"
+        !mariadb? && database_version >= "5.7.6"
+      end
+
+      def default_srid
+        DEFAULT_SRID
+      end
+
+      def spatial_column_options(_table_name)
+        # Return empty hash as MySQL stores spatial metadata in information_schema
+        {}
+      end
+
+      def with_connection
+        yield self
       end
 
       def schema_creation
@@ -113,11 +133,16 @@ module ActiveRecord
           geometry: { name: "geometry" },
           point: { name: "point" },
           linestring: { name: "linestring" },
+          line_string: { name: "linestring" },
           polygon: { name: "polygon" },
           multipoint: { name: "multipoint" },
+          multi_point: { name: "multipoint" },
           multilinestring: { name: "multilinestring" },
+          multi_line_string: { name: "multilinestring" },
           multipolygon: { name: "multipolygon" },
-          geometrycollection: { name: "geometrycollection" }
+          multi_polygon: { name: "multipolygon" },
+          geometrycollection: { name: "geometrycollection" },
+          geometry_collection: { name: "geometrycollection" }
         )
       end
 
@@ -125,10 +150,18 @@ module ActiveRecord
       def quote(value)
         if value.is_a?(RGeo::Feature::Instance)
           srid = value.srid || DEFAULT_SRID
-          wkb_hex = RGeo::WKRep::WKBGenerator.new(hex_format: true, little_endian: true).generate(value)
 
-          # Use ST_GeomFromWKB with SRID and axis order option for MySQL 8.0+ compatibility
-          "ST_GeomFromWKB(0x#{wkb_hex}, #{srid}, #{AXIS_ORDER_LONG_LAT})"
+          # For SRID 4326 (geographic), we MUST use ST_GeomFromText with axis-order parameter
+          # because ST_GeomFromWKB does NOT support axis-order and will interpret coordinates
+          # in MySQL's default latitude-longitude order, which is opposite of GIS standards
+          if srid == GEOGRAPHIC_SRID
+            wkt = value.as_text
+            "ST_GeomFromText('#{wkt}', #{srid}, #{AXIS_ORDER_LONG_LAT})"
+          else
+            # For other SRIDs, WKB is fine and more efficient
+            wkb_hex = RGeo::WKRep::WKBGenerator.new(hex_format: true, little_endian: true).generate(value)
+            "ST_GeomFromWKB(0x#{wkb_hex}, #{srid})"
+          end
         else
           super
         end
@@ -168,20 +201,17 @@ module ActiveRecord
 
       # Override type_map to include spatial types
       def type_map
-        @type_map ||= Type::TypeMap.new.tap do |m|
-          super_type_map = super
-
-          # Copy all non-spatial types from parent
-          super_type_map.instance_variable_get(:@mapping).each do |key, value|
-            m.register_type(key, value) unless SPATIAL_COLUMN_TYPES.include?(key.to_s.downcase)
-          end
+        @type_map ||= begin
+          map = super.dup
 
           # Add spatial types
           SPATIAL_COLUMN_TYPES.each do |geo_type|
-            m.register_type(geo_type) do |sql_type|
+            map.register_type(geo_type) do |sql_type|
               Type::Spatial.new(sql_type)
             end
           end
+
+          map
         end
       end
 

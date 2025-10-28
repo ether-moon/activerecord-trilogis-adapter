@@ -27,6 +27,10 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "mocha", "~> 2.0"
   spec.add_development_dependency "ostruct"
   spec.add_development_dependency "rake", "~> 13.0"
+  spec.add_development_dependency "rubocop", "~> 1.81"
+  spec.add_development_dependency "rubocop-minitest", "~> 0.38"
+  spec.add_development_dependency "rubocop-performance", "~> 1.24"
+  spec.add_development_dependency "rubocop-rake", "~> 0.6"
   spec.add_development_dependency "trilogy", "~> 2.7"
   spec.metadata["rubygems_mfa_required"] = "true"
 end

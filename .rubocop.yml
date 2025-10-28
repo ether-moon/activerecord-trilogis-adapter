@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 plugins:
+  - rubocop-minitest
   - rubocop-performance
   - rubocop-rake
 
@@ -34,6 +35,7 @@ Metrics/MethodLength:
   Exclude:
     - 'test/**/*'
     - 'lib/active_record/connection_adapters/**/*'
+    - 'lib/active_record/type/**/*'
     - 'verify_implementation.rb'
 
 Metrics/AbcSize:
@@ -42,6 +44,31 @@ Metrics/AbcSize:
     - 'lib/active_record/connection_adapters/**/*'
 
 Metrics/ClassLength:
+  Exclude:
+    - 'test/**/*'
+    - 'lib/active_record/connection_adapters/**/*'
+    - 'lib/active_record/type/**/*'
+
+Metrics/ModuleLength:
+  Exclude:
+    - 'test/**/*'
+    - 'lib/active_record/connection_adapters/**/*'
+    - 'lib/active_record/type/**/*'
+
+Metrics/CyclomaticComplexity:
+  Exclude:
+    - 'lib/active_record/connection_adapters/**/*'
+    - 'lib/active_record/type/**/*'
+
+Metrics/PerceivedComplexity:
+  Exclude:
+    - 'lib/active_record/connection_adapters/**/*'
+    - 'lib/active_record/type/**/*'
+
+Naming/PredicatePrefix:
+  Enabled: false
+
+Naming/VariableNumber:
   Exclude:
     - 'test/**/*'
 

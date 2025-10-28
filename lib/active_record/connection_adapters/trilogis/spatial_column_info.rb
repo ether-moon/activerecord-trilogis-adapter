@@ -12,25 +12,29 @@ module ActiveRecord
         end
 
         def all
-          # Query MySQL's information schema for spatial column metadata
+          # Query MySQL's ST_GEOMETRY_COLUMNS view for SRID info
+          # This view properly returns SRS_ID for spatial columns
           sql = <<~SQL.squish
             SELECT
-              column_name,
-              srs_id,
-              column_type
-            FROM information_schema.columns
-            WHERE table_schema = DATABASE()
-              AND table_name = #{@adapter.quote(@table_name)}
-              AND data_type IN ('geometry', 'point', 'linestring', 'polygon',
-                               'multipoint', 'multilinestring', 'multipolygon',
-                               'geometrycollection')
+              gc.COLUMN_NAME as column_name,
+              gc.SRS_ID as srs_id,
+              gc.GEOMETRY_TYPE_NAME as geometry_type,
+              c.COLUMN_TYPE as column_type
+            FROM INFORMATION_SCHEMA.ST_GEOMETRY_COLUMNS gc
+            JOIN INFORMATION_SCHEMA.COLUMNS c
+              ON gc.TABLE_SCHEMA = c.TABLE_SCHEMA
+              AND gc.TABLE_NAME = c.TABLE_NAME
+              AND gc.COLUMN_NAME = c.COLUMN_NAME
+            WHERE gc.TABLE_SCHEMA = DATABASE()
+              AND gc.TABLE_NAME = #{@adapter.quote(@table_name)}
           SQL
 
           result = {}
           @adapter.exec_query(sql, "SCHEMA").each do |row|
-            column_name = row["column_name"]
-            srs_id = row["srs_id"]
-            column_type = row["column_type"].to_s.sub(/m$/, "")
+            column_name = row["column_name"] || row["COLUMN_NAME"]
+            srs_id = row["srs_id"] || row["SRS_ID"]
+            row["geometry_type"] || row["GEOMETRY_TYPE"]
+            column_type = (row["column_type"] || row["COLUMN_TYPE"]).to_s.sub(/m$/, "")
 
             result[column_name] = {
               name: column_name,
@@ -47,8 +51,9 @@ module ActiveRecord
           # Only query for known spatial types
           return unless TrilogisAdapter::SPATIAL_COLUMN_TYPES.include?(sql_type.to_s.downcase)
 
-          @spatial_column_info ||= all
-          @spatial_column_info[column_name]
+          # Don't memoize - always query fresh data to avoid stale cache issues
+          # when columns are added during tests
+          all[column_name]
         end
       end
     end

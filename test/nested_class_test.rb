@@ -17,6 +17,7 @@ class NestedClassTest < ActiveSupport::TestCase
     Foo::Bar.connection.create_table(:foo_bars, force: true) do |t|
       t.column "latlon", :point, srid: 3857
     end
+
     assert_empty Foo::Bar.all
     Foo::Bar.connection.drop_table(:foo_bars)
   end

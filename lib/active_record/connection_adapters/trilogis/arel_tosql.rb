@@ -45,11 +45,12 @@ module Arel
         srid = node.srid || 0
         wkt = node.as_text
 
-        # Include axis-order option for MySQL 8.0+ geographic coordinate systems
-        if srid.positive?
+        # MySQL ST_GeomFromText supports axis-order option for geographic SRIDs
+        # This ensures longitude-latitude order for SRID 4326 (WGS84)
+        if srid == 4326
           collector << "ST_GeomFromText('#{wkt}', #{srid}, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
         else
-          collector << "ST_GeomFromText('#{wkt}', 0, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
+          collector << "ST_GeomFromText('#{wkt}', #{srid})"
         end
       end
 
@@ -58,9 +59,14 @@ module Arel
         if wkt =~ /^SRID=(\d+);(.+)$/i
           srid = Regexp.last_match(1).to_i
           clean_wkt = Regexp.last_match(2)
-          collector << "ST_GeomFromText('#{clean_wkt}', #{srid}, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
+          # Use axis-order for geographic SRID
+          if srid == 4326
+            collector << "ST_GeomFromText('#{clean_wkt}', #{srid}, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
+          else
+            collector << "ST_GeomFromText('#{clean_wkt}', #{srid})"
+          end
         else
-          collector << "ST_GeomFromText('#{wkt}', 0, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
+          collector << "ST_GeomFromText('#{wkt}', 0)"
         end
       end
 
@@ -72,7 +78,12 @@ module Arel
           collector << "("
           o.expressions.each_with_index do |arg, i|
             collector << ", " if i.positive?
-            visit(arg, collector)
+            # Handle string arguments (WKT/EWKT)
+            if arg.is_a?(String)
+              visit_wkt_string(arg, collector)
+            else
+              visit(arg, collector)
+            end
           end
           collector << ")"
         else
@@ -86,6 +97,25 @@ module Arel
           visit_RGeo_Feature_Instance(o.value, collector)
         else
           super
+        end
+      end
+
+      # Handle RGeo spatial constant nodes from rgeo-activerecord gem
+      def visit_RGeo_ActiveRecord_SpatialConstantNode(node, collector)
+        value = node.delegate
+        if value.is_a?(RGeo::Feature::Instance)
+          visit_RGeo_Feature_Instance(value, collector)
+        elsif value.is_a?(String)
+          # Handle WKT strings
+          if value.match?(/^[A-Z]/)
+            visit_wkt_string(value, collector)
+          else
+            # Regular string literal
+            collector << quote(value)
+          end
+        else
+          # For numeric or other values
+          collector << quote(value)
         end
       end
 

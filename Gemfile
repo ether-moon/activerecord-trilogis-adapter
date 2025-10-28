@@ -13,5 +13,6 @@ gem "activerecord", "~> 8.0.0"
 
 # Code quality and linting
 gem "rubocop", "~> 1.81", require: false
+gem "rubocop-minitest", "~> 0.38", require: false
 gem "rubocop-performance", "~> 1.24", require: false
 gem "rubocop-rake", "~> 0.6", require: false
