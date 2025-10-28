@@ -69,7 +69,7 @@ module ActiveRecord
                 spatial_info: spatial_info
               )
             else
-              super_column_from_field(table_name, field)
+              new_column_from_field(table_name, field)
             end
           end
         end
