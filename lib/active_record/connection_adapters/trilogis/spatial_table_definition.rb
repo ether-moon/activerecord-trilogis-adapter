@@ -55,13 +55,28 @@ module ActiveRecord
 
         # Override column to handle spatial types
         def column(name, type, index: nil, **options)
-          # Extract spatial-specific options before calling super
-          srid = options.delete(:srid)
+          # Store spatial-specific options before processing
+          spatial_options = {
+            srid: options.delete(:srid),
+            has_m: options.delete(:has_m),
+            has_z: options.delete(:has_z),
+            geographic: options.delete(:geographic)
+          }.compact
 
-          super
+          # Call super to create column definition
+          result = super
+
+          # Add spatial options back to the column definition if it's a spatial type
+          if spatial_type?(type) && (col = @columns_hash[name.to_s])
+            spatial_options.each do |key, value|
+              col.options[key] = value
+            end
+          end
 
           # Add spatial index if requested
           @indexes << [name, { type: :spatial }] if index && spatial_type?(type) && [true, :spatial].include?(index)
+
+          result
         end
 
         private

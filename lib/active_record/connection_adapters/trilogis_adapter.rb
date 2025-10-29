@@ -61,10 +61,6 @@ module ActiveRecord
     class TrilogisAdapter < TrilogyAdapter
       ADAPTER_NAME = "Trilogis"
 
-      # MySQL 8.0+ requires explicit axis order for geographic coordinates
-      # to maintain long-lat (x-y) order instead of lat-long (y-x)
-      AXIS_ORDER_LONG_LAT = "'axis-order=long-lat'"
-
       include Trilogis::SchemaStatements
 
       # MySQL spatial data types
@@ -81,8 +77,26 @@ module ActiveRecord
 
       # Default SRID for MySQL
       DEFAULT_SRID = 0
-      # Geographic SRID (WGS84)
-      GEOGRAPHIC_SRID = 4326
+
+      # MySQL 8.0+ supports axis-order option for ST_GeomFromText/ST_GeomFromWKB
+      # This is critical for geographic coordinate systems to interpret coordinates
+      # in longitude-latitude order instead of MySQL's default latitude-longitude
+      AXIS_ORDER_LONG_LAT = "'axis-order=long-lat'"
+
+      # Common geographic SRIDs that use latitude-longitude by default in MySQL 8.0
+      # These need axis-order parameter to work with standard GIS longitude-latitude format
+      GEOGRAPHIC_SRIDS = [
+        4326, # WGS 84 (GPS)
+        4269, # NAD83
+        4267, # NAD27
+        4258, # ETRS89
+        4019  # Unknown datum based upon the GRS 1980 ellipsoid
+      ].freeze
+
+      # Class method to check if a type is spatial
+      def self.spatial_column_options(type)
+        SPATIAL_COLUMN_TYPES.include?(type.to_s.downcase)
+      end
 
       def initialize(...)
         super
@@ -101,7 +115,20 @@ module ActiveRecord
       def supports_spatial?
         # MySQL 5.7.6+ supports spatial indexes and functions
         # MariaDB has different spatial support, so we exclude it for now
-        !mariadb? && version >= "5.7.6"
+        !mariadb? && database_version >= "5.7.6"
+      end
+
+      def default_srid
+        DEFAULT_SRID
+      end
+
+      def spatial_column_options(_table_name)
+        # Return empty hash as MySQL stores spatial metadata in information_schema
+        {}
+      end
+
+      def with_connection
+        yield self
       end
 
       def schema_creation
@@ -113,11 +140,16 @@ module ActiveRecord
           geometry: { name: "geometry" },
           point: { name: "point" },
           linestring: { name: "linestring" },
+          line_string: { name: "linestring" },
           polygon: { name: "polygon" },
           multipoint: { name: "multipoint" },
+          multi_point: { name: "multipoint" },
           multilinestring: { name: "multilinestring" },
+          multi_line_string: { name: "multilinestring" },
           multipolygon: { name: "multipolygon" },
-          geometrycollection: { name: "geometrycollection" }
+          multi_polygon: { name: "multipolygon" },
+          geometrycollection: { name: "geometrycollection" },
+          geometry_collection: { name: "geometrycollection" }
         )
       end
 
@@ -125,10 +157,17 @@ module ActiveRecord
       def quote(value)
         if value.is_a?(RGeo::Feature::Instance)
           srid = value.srid || DEFAULT_SRID
-          wkb_hex = RGeo::WKRep::WKBGenerator.new(hex_format: true, little_endian: true).generate(value)
 
-          # Use ST_GeomFromWKB with SRID and axis order option for MySQL 8.0+ compatibility
-          "ST_GeomFromWKB(0x#{wkb_hex}, #{srid}, #{AXIS_ORDER_LONG_LAT})"
+          # For geographic SRIDs, use axis-order parameter to ensure longitude-latitude order
+          # MySQL 8.0 defaults to latitude-longitude for geographic SRS, but GIS tools use long-lat
+          # ST_GeomFromWKB DOES support axis-order parameter in MySQL 8.0+
+          wkb_hex = RGeo::WKRep::WKBGenerator.new(hex_format: true, little_endian: true).generate(value)
+          if geographic_srid?(srid)
+            "ST_GeomFromWKB(0x#{wkb_hex}, #{srid}, #{AXIS_ORDER_LONG_LAT})"
+          else
+            # For projected SRIDs (like 3857), no axis-order needed - uses cartesian X,Y
+            "ST_GeomFromWKB(0x#{wkb_hex}, #{srid})"
+          end
         else
           super
         end
@@ -166,22 +205,24 @@ module ActiveRecord
         end
       end
 
+      # Check if a SRID is geographic (uses latitude-longitude coordinate system)
+      def geographic_srid?(srid)
+        GEOGRAPHIC_SRIDS.include?(srid)
+      end
+
       # Override type_map to include spatial types
       def type_map
-        @type_map ||= Type::TypeMap.new.tap do |m|
-          super_type_map = super
-
-          # Copy all non-spatial types from parent
-          super_type_map.instance_variable_get(:@mapping).each do |key, value|
-            m.register_type(key, value) unless SPATIAL_COLUMN_TYPES.include?(key.to_s.downcase)
-          end
+        @type_map ||= begin
+          map = super.dup
 
           # Add spatial types
           SPATIAL_COLUMN_TYPES.each do |geo_type|
-            m.register_type(geo_type) do |sql_type|
+            map.register_type(geo_type) do |sql_type|
               Type::Spatial.new(sql_type)
             end
           end
+
+          map
         end
       end
 

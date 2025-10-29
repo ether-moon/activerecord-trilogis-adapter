@@ -38,11 +38,17 @@ module ActiveSupport
     def setup
       # Clean up any existing tables before each test
       cleanup_tables
+      # Clear spatial column cache to prevent test pollution
+      clear_spatial_caches
+      # Reset column information for models
+      reset_model_columns
     end
 
     def teardown
       # Clean up tables after each test
       cleanup_tables
+      # Clear spatial column cache
+      clear_spatial_caches
     end
 
     def factory
@@ -68,6 +74,22 @@ module ActiveSupport
       rescue ActiveRecord::StatementInvalid
         # Ignore errors during cleanup
       end
+    end
+
+    def clear_spatial_caches
+      return unless ActiveRecord::Base.connected?
+
+      connection = ActiveRecord::Base.connection
+      # Clear the spatial column info cache if the connection supports it
+      connection.clear_spatial_cache! if connection.respond_to?(:clear_spatial_cache!)
+    end
+
+    def reset_model_columns
+      # Reset column information for all models to prevent stale column data
+      SpatialModel.reset_column_information
+      SpatialMultiModel.reset_column_information
+    rescue StandardError
+      # Ignore if models haven't been set up yet
     end
   end
 end

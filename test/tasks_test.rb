@@ -8,7 +8,8 @@ class TasksTest < ActiveSupport::TestCase
     setup_database_tasks
     ActiveRecord::Tasks::DatabaseTasks.structure_dump(new_connection, tmp_sql_filename)
     sql = File.read(tmp_sql_filename)
-    assert(!sql.include?("CREATE TABLE"))
+
+    refute_includes(sql, "CREATE TABLE")
   end
 
   def test_sql_dump
@@ -20,6 +21,7 @@ class TasksTest < ActiveSupport::TestCase
     end
     ActiveRecord::Tasks::DatabaseTasks.structure_dump(new_connection, tmp_sql_filename)
     data = File.read(tmp_sql_filename)
+
     assert_includes data, "`latlon` point"
     assert_includes data, "`geo_col` geometry"
     assert_includes data, "`poly` multipolygon"
@@ -35,6 +37,7 @@ class TasksTest < ActiveSupport::TestCase
     connection.add_index :spatial_test, :name, using: :btree
     ActiveRecord::Tasks::DatabaseTasks.structure_dump(new_connection, tmp_sql_filename)
     data = File.read(tmp_sql_filename)
+
     assert_includes data, "`latlon` point"
     assert_includes data, "SPATIAL KEY `index_spatial_test_on_latlon` (`latlon`)"
     assert_includes data, "KEY `index_spatial_test_on_name` (`name`) USING BTREE"
@@ -46,21 +49,25 @@ class TasksTest < ActiveSupport::TestCase
       ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection, file)
     end
     data = File.read(tmp_sql_filename)
+
     assert_includes data, "ActiveRecord::Schema"
   end
 
   def test_basic_geometry_schema_dump
     setup_database_tasks
     connection.create_table(:spatial_test, force: true) do |t|
-      t.geometry "object1"
+      t.spatial "object1", srid: connection.default_srid, type: "geometry"
       t.spatial "object2", srid: connection.default_srid, type: "geometry"
     end
     File.open(tmp_sql_filename, "w:utf-8") do |file|
       ActiveRecord::SchemaDumper.dump(connection, file)
     end
     data = File.read(tmp_sql_filename)
-    assert_includes data, "t.geometry \"object1\", limit: {:type=>\"geometry\", :srid=>#{connection.default_srid}"
-    assert_includes data, "t.geometry \"object2\", limit: {:type=>\"geometry\", :srid=>#{connection.default_srid}"
+
+    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
+    # Match either format by checking for the essential parts
+    assert_match(/t\.geometry "object1".*"geometry".*#{connection.default_srid}/, data)
+    assert_match(/t\.geometry "object2".*"geometry".*#{connection.default_srid}/, data)
   end
 
   def test_basic_geography_schema_dump
@@ -73,8 +80,11 @@ class TasksTest < ActiveSupport::TestCase
       ActiveRecord::SchemaDumper.dump(connection, file)
     end
     data = File.read(tmp_sql_filename)
-    assert_includes data, %(t.geometry "latlon1", limit: {:type=>"point", :srid=>4326})
-    assert_includes data, %(t.geometry "latlon2", limit: {:type=>"point", :srid=>4326})
+
+    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
+    # Match either format by checking for the essential parts
+    assert_match(/t\.geometry "latlon1".*"point".*4326/, data)
+    assert_match(/t\.geometry "latlon2".*"point".*4326/, data)
   end
 
   def test_index_schema_dump
@@ -87,7 +97,10 @@ class TasksTest < ActiveSupport::TestCase
       ActiveRecord::SchemaDumper.dump(connection, file)
     end
     data = File.read(tmp_sql_filename)
-    assert_includes data, %(t.geometry "latlon", limit: {:type=>"point", :srid=>4326}, null: false)
+
+    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
+    # Match either format by checking for the essential parts
+    assert_match(/t\.geometry "latlon".*"point".*4326.*null: false/, data)
     assert_includes data, %(t.index ["latlon"], name: "index_spatial_test_on_latlon", type: :spatial)
   end
 

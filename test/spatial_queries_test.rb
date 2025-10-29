@@ -7,8 +7,10 @@ class SpatialQueriesTest < ActiveSupport::TestCase
     create_model
     obj = SpatialModel.create!(latlon: factory.point(1, 2))
     id = obj.id
+
     assert_empty SpatialModel.where(latlon: factory.point(2, 2))
     obj1 = SpatialModel.find_by(latlon: factory.point(1, 2))
+
     refute_nil(obj1)
     assert_equal id, obj1.id
   end
@@ -18,9 +20,11 @@ class SpatialQueriesTest < ActiveSupport::TestCase
     obj = SpatialModel.create!(latlon: factory.point(1, 2))
     id = obj.id
     obj2 = SpatialModel.find_by(latlon: "SRID=3857;POINT(1 2)")
+
     refute_nil(obj2)
     assert_equal(id, obj2.id)
     obj3 = SpatialModel.find_by(latlon: "SRID=3857;POINT(2 2)")
+
     assert_nil(obj3)
   end
 
@@ -29,9 +33,11 @@ class SpatialQueriesTest < ActiveSupport::TestCase
     obj = SpatialModel.create!(latlon: factory.point(1, 2))
     id = obj.id
     obj2 = SpatialModel.find_by(SpatialModel.arel_table[:latlon].st_distance("SRID=3857;POINT(2 3)").lt(2))
+
     refute_nil(obj2)
     assert_equal(id, obj2.id)
     obj3 = SpatialModel.find_by(SpatialModel.arel_table[:latlon].st_distance("SRID=3857;POINT(2 3)").gt(2))
+
     assert_nil(obj3)
   end
 
@@ -44,11 +50,13 @@ class SpatialQueriesTest < ActiveSupport::TestCase
     point = ::Arel.spatial("SRID=3857;POINT(2 3)")
     distance = point.st_distance(SpatialModel.arel_table[:latlon])
     obj2 = SpatialModel.find_by(distance.lt(2))
+
     refute_nil(obj2)
     assert_equal(id, obj2.id)
 
     # Query with distance greater than 2
     obj3 = SpatialModel.find_by(distance.gt(2))
+
     assert_nil(obj3)
   end
 
@@ -59,9 +67,11 @@ class SpatialQueriesTest < ActiveSupport::TestCase
     obj.save!
     id = obj.id
     obj2 = SpatialModel.find_by(SpatialModel.arel_table[:path].st_length.eq(2))
+
     refute_nil(obj2)
     assert_equal(id, obj2.id)
     obj3 = SpatialModel.find_by(SpatialModel.arel_table[:path].st_length.gt(3))
+
     assert_nil(obj3)
   end
 

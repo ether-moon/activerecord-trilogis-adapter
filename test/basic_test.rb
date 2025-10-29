@@ -16,15 +16,17 @@ class BasicTest < ActiveSupport::TestCase
     node = RGeo::ActiveRecord::SpatialConstantNode.new("POINT (1.0 2.0)")
     collector = Arel::Collectors::PlainString.new
     visitor.accept(node, collector)
-    axis_order = ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT
-    assert_equal "ST_GeomFromText('POINT (1.0 2.0)', 0, #{axis_order})", collector.value
+
+    assert_equal "ST_GeomFromText('POINT (1.0 2.0)', 0)", collector.value
   end
 
   def test_set_and_get_point
     create_model
     obj = SpatialModel.new
+
     assert_nil obj.latlon
     obj.latlon = factory.point(1.0, 2.0)
+
     assert_equal factory.point(1.0, 2.0), obj.latlon
     assert_equal 3857, obj.latlon.srid
   end
@@ -32,8 +34,10 @@ class BasicTest < ActiveSupport::TestCase
   def test_set_and_get_point_from_wkt
     create_model
     obj = SpatialModel.new
+
     assert_nil obj.latlon
     obj.latlon = "SRID=3857;POINT(1 2)"
+
     assert_equal factory.point(1.0, 2.0), obj.latlon
     assert_equal 3857, obj.latlon.srid
   end
@@ -45,6 +49,7 @@ class BasicTest < ActiveSupport::TestCase
     obj.save!
     id = obj.id
     obj2 = SpatialModel.find(id)
+
     assert_equal factory.point(1.0, 2.0), obj2.latlon
     assert_equal 3857, obj2.latlon.srid
   end
@@ -56,6 +61,7 @@ class BasicTest < ActiveSupport::TestCase
     obj.save!
     id = obj.id
     obj2 = SpatialModel.find(id)
+
     assert_equal geographic_factory.point(1.0, 2.0), obj2.latlon_geo
     assert_equal 4326, obj2.latlon_geo.srid
   end
@@ -67,6 +73,7 @@ class BasicTest < ActiveSupport::TestCase
     obj.save!
     id = obj.id
     obj2 = SpatialModel.find(id)
+
     assert_equal factory.point(1.0, 2.0), obj2.latlon
     assert_equal 3857, obj2.latlon.srid
   end
@@ -74,6 +81,7 @@ class BasicTest < ActiveSupport::TestCase
   def test_set_point_bad_wkt
     create_model
     obj = SpatialModel.create(latlon: "POINT (x)")
+
     assert_nil obj.latlon
   end
 
@@ -97,6 +105,7 @@ class BasicTest < ActiveSupport::TestCase
     object.area = area
     object.save!
     object.reload
+
     assert_equal area.to_s, object.area.to_s
     spatial_factory_store.clear
   end
@@ -113,6 +122,7 @@ class BasicTest < ActiveSupport::TestCase
       t.point(:latlon, null: false, srid: 4326)
     end
     klass.reset_column_information
+
     assert_includes klass.columns.map(&:name), "shape"
     klass.connection.change_table(:spatial_models) do |t|
       t.index(:latlon, type: :spatial)
@@ -129,8 +139,10 @@ class BasicTest < ActiveSupport::TestCase
   def test_point_to_json
     create_model
     obj = SpatialModel.new
+
     assert_match(/"latlon":null/, obj.to_json)
     obj.latlon = factory.point(1.0, 2.0)
+
     assert_match(/"latlon":"POINT\s\(1\.0\s2\.0\)"/, obj.to_json)
   end
 
@@ -139,6 +151,7 @@ class BasicTest < ActiveSupport::TestCase
     rec = SpatialModel.new
     rec.latlon = "SRID=3857;POINT(0 0)"
     rec.save
+
     refute_nil SpatialModel.select("CURRENT_TIMESTAMP as ts").first.ts
   end
 
@@ -154,8 +167,10 @@ class BasicTest < ActiveSupport::TestCase
           "-73.97216860098405 40.783018324791776, " \
           "-73.97210545302842 40.782991711401195)))"
     rec.m_poly = wkt
+
     assert rec.save
     rec = SpatialModel.find(rec.id) # force reload
+
     assert_equal wkt, rec.m_poly.to_s
   end
 
