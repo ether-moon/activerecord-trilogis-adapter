@@ -154,30 +154,50 @@ module ActiveRecord
       def parse_wkb_hex(hex_string)
         return nil if hex_string.nil? || hex_string.empty?
 
-        # MySQL returns WKB as hex string
-        binary = [hex_string].pack("H*")
-
-        # MySQL internal format: first 4 bytes are SRID (little-endian), then WKB
-        if binary.length >= 5
-          srid = binary[0..3].unpack1("V") # V = unsigned 32-bit little-endian
-          wkb_data = binary[4..]
-
-          # Create appropriate factory based on SRID
-          # Geographic SRIDs (4326, 4269, 4267, 4258, 4019) need spherical factory
-          geo_factory = if geographic_srid?(srid)
-                          RGeo::Geographic.spherical_factory(srid: srid)
-                        else
-                          RGeo::Cartesian.preferred_factory(srid: srid)
-                        end
-
-          # Support EWKB format
-          RGeo::WKRep::WKBParser.new(geo_factory, support_ewkb: true, default_srid: srid).parse(wkb_data)
-        else
-          # Fall back to standard WKB parsing with EWKB support
-          RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary)
-        end
+        binary = convert_hex_to_binary(hex_string)
+        parse_binary_with_srid(binary)
       rescue RGeo::Error::ParseError, ArgumentError
         nil
+      end
+
+      def convert_hex_to_binary(hex_string)
+        # MySQL returns WKB as hex string
+        [hex_string].pack("H*")
+      end
+
+      def parse_binary_with_srid(binary)
+        # MySQL internal format: first 4 bytes are SRID (little-endian), then WKB
+        if binary.length >= 5
+          srid = extract_srid(binary)
+          wkb_data = binary[4..]
+          parse_wkb_with_factory(wkb_data, srid)
+        else
+          parse_standard_wkb(binary)
+        end
+      end
+
+      def extract_srid(binary)
+        # V = unsigned 32-bit little-endian
+        binary[0..3].unpack1("V")
+      end
+
+      def parse_wkb_with_factory(wkb_data, srid)
+        geo_factory = create_factory_for_srid(srid)
+        RGeo::WKRep::WKBParser.new(geo_factory, support_ewkb: true, default_srid: srid).parse(wkb_data)
+      end
+
+      def create_factory_for_srid(srid)
+        # Geographic SRIDs (4326, 4269, 4267, 4258, 4019) need spherical factory
+        if geographic_srid?(srid)
+          RGeo::Geographic.spherical_factory(srid: srid)
+        else
+          RGeo::Cartesian.preferred_factory(srid: srid)
+        end
+      end
+
+      def parse_standard_wkb(binary)
+        # Fall back to standard WKB parsing with EWKB support
+        RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary)
       end
 
       # Check if SRID represents a geographic coordinate system
@@ -218,9 +238,9 @@ module ActiveRecord
 
         # Support GeoJSON-like hashes (allow symbol or string keys)
         normalized_hash = hash.transform_keys(&:to_s)
-        if normalized_hash["type"] && normalized_hash["coordinates"]
-          RGeo::GeoJSON.decode(normalized_hash.to_json, geo_factory: spatial_factory)
-        end
+        return unless normalized_hash["type"] && normalized_hash["coordinates"]
+
+        RGeo::GeoJSON.decode(normalized_hash.to_json, geo_factory: spatial_factory)
       end
 
       def spatial_factory

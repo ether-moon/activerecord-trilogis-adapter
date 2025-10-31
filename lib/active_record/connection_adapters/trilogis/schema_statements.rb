@@ -86,9 +86,7 @@ module ActiveRecord
             sql << " NOT NULL" if options[:null] == false
 
             # Add DEFAULT if specified (allow falsy values like 0/false)
-            if options.key?(:default)
-              sql << " DEFAULT #{quote_default_expression(options[:default], nil)}"
-            end
+            sql << " DEFAULT #{quote_default_expression(options[:default], nil)}" if options.key?(:default)
 
             execute sql
 
@@ -120,10 +118,10 @@ module ActiveRecord
         def spatial_sql_type(base_type, subtype = nil)
           sql_type = base_type.to_s.delete("_").upcase
           subtype_sql = subtype.to_s
-          if !subtype_sql.empty?
-            "#{sql_type}(#{subtype_sql.delete("_").upcase})"
-          else
+          if subtype_sql.empty?
             sql_type
+          else
+            "#{sql_type}(#{subtype_sql.delete('_').upcase})"
           end
         end
 

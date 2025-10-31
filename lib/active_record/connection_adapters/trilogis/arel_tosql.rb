@@ -35,11 +35,12 @@ module Arel
 
       # Override visit_in_spatial_context to use our axis-order logic
       def visit_in_spatial_context(node, collector)
-        if node.is_a?(String)
+        case node
+        when String
           visit_wkt_string(node, collector)
-        elsif node.is_a?(RGeo::Feature::Instance)
+        when RGeo::Feature::Instance
           visit_RGeo_Feature_Instance(node, collector)
-        elsif node.is_a?(RGeo::Cartesian::BoundingBox)
+        when RGeo::Cartesian::BoundingBox
           geom = node.to_geometry
           visit_RGeo_Feature_Instance(geom, collector)
         else
