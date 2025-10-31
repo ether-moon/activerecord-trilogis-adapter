@@ -2,7 +2,7 @@
 
 module ActiveRecord
   module Type
-    class Spatial < ActiveModel::Type::Value
+    class Spatial < Binary
       attr_reader :geo_type, :srid
 
       def initialize(sql_type = "geometry")
