@@ -201,7 +201,7 @@ module ActiveRecord
         # This ensures the correct factory (Geographic vs Cartesian) is used based on SRID
         RGeo::ActiveRecord::SpatialFactoryStore.instance.tap do |factory_store|
           factory_store.default = ->(config) {
-            srid = config[:srid] || DEFAULT_SRID
+            srid = (config[:srid] || DEFAULT_SRID).to_i
 
             if GEOGRAPHIC_SRIDS.include?(srid)
               # Use Geographic factory for geographic coordinate systems
