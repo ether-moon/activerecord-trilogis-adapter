@@ -14,7 +14,7 @@ Gem::Specification.new do |spec|
   spec.homepage = "http://github.com/ether-moon/activerecord-trilogis-adapter"
   spec.license = "MIT"
 
-  spec.files = Dir["lib/**/*", "LICENSE.txt"]
+  spec.files = Dir["lib/**/*", "LICENSE"]
   spec.platform = Gem::Platform::RUBY
 
   spec.required_ruby_version = ">= 3.2.0", "< 3.5"
