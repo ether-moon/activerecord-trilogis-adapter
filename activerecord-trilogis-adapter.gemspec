@@ -21,7 +21,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "activerecord", ">= 8.0", "< 9.0"
   spec.add_dependency "rgeo", "~> 3.0"
-  spec.add_dependency "rgeo-activerecord", "~> 7.0"
+  spec.add_dependency "rgeo-activerecord", "~> 8.0"
 
   spec.add_development_dependency "minitest", "~> 5.4"
   spec.add_development_dependency "mocha", "~> 2.0"
@@ -31,6 +31,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rubocop-minitest", "~> 0.38"
   spec.add_development_dependency "rubocop-performance", "~> 1.24"
   spec.add_development_dependency "rubocop-rake", "~> 0.6"
-  spec.add_development_dependency "trilogy", "~> 2.7"
+  spec.add_development_dependency "trilogy", "~> 2.9"
   spec.metadata["rubygems_mfa_required"] = "true"
 end

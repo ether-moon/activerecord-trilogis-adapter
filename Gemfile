@@ -6,7 +6,7 @@ source "https://rubygems.org"
 gemspec
 
 gem "byebug" if ENV["BYEBUG"]
-gem "trilogy", "~> 2.7"
+gem "trilogy", "~> 2.9"
 
 # Rails 8.0+ officially supports Ruby 3.4
 gem "activerecord", "~> 8.0.0"
