@@ -106,6 +106,9 @@ module ActiveRecord
 
         # Register spatial types
         register_spatial_types
+
+        # Configure RGeo factory generator for SRID-based factory selection
+        configure_rgeo_factory_generator
       end
 
       def adapter_name
@@ -190,6 +193,28 @@ module ActiveRecord
             Type::Spatial.new(geo_type),
             adapter: :trilogis
           )
+        end
+      end
+
+      def configure_rgeo_factory_generator
+        # Set up factory generator for RGeo::ActiveRecord::SpatialFactoryStore
+        # This ensures the correct factory (Geographic vs Cartesian) is used based on SRID
+        RGeo::ActiveRecord::SpatialFactoryStore.instance.tap do |factory_store|
+          factory_store.default = ->(config) {
+            srid = config[:srid] || DEFAULT_SRID
+
+            if GEOGRAPHIC_SRIDS.include?(srid)
+              # Use Geographic factory for geographic coordinate systems
+              RGeo::Geographic.spherical_factory(srid: srid)
+            else
+              # Use Cartesian factory for projected coordinate systems
+              RGeo::Cartesian.preferred_factory(
+                srid: srid,
+                has_z_coordinate: false,
+                has_m_coordinate: false
+              )
+            end
+          }
         end
       end
 
