@@ -6,12 +6,15 @@ module ActiveRecord
       module SchemaStatements
         def type_to_sql(type, limit: nil, precision: nil, scale: nil, **)
           if spatial_type?(type.to_s)
-            # Remove underscores and convert to uppercase for MySQL spatial types
-            sql_type = type.to_s.delete("_").upcase
-
-            # Handle SRID specification
+            # If limit[:type] is specified, use it as the geometry type (e.g., "point")
+            # Otherwise use the base type (e.g., "geometry")
+            base_type = if limit.is_a?(Hash) && limit[:type]
+                          limit[:type]
+                        else
+                          type
+                        end
+            sql_type = spatial_sql_type(base_type, nil)
             sql_type = "#{sql_type} SRID #{limit[:srid]}" if limit.is_a?(Hash) && limit[:srid]
-
             sql_type
           else
             super
@@ -73,7 +76,7 @@ module ActiveRecord
         def add_column(table_name, column_name, type, **options)
           if spatial_type?(type.to_s)
             # Build ALTER TABLE statement for spatial column
-            sql_type = type.to_s.delete("_").upcase
+            sql_type = spatial_sql_type(type, options[:type])
             sql = "ALTER TABLE #{quote_table_name(table_name)} ADD #{quote_column_name(column_name)} #{sql_type}"
 
             # Add SRID if specified
@@ -82,8 +85,10 @@ module ActiveRecord
             # Add NULL constraint
             sql << " NOT NULL" if options[:null] == false
 
-            # Add DEFAULT if specified
-            sql << " DEFAULT #{quote_default_expression(options[:default], nil)}" if options[:default]
+            # Add DEFAULT if specified (allow falsy values like 0/false)
+            if options.key?(:default)
+              sql << " DEFAULT #{quote_default_expression(options[:default], nil)}"
+            end
 
             execute sql
 
@@ -110,6 +115,16 @@ module ActiveRecord
         # Clear all spatial column caches (useful for tests)
         def clear_spatial_cache!
           @spatial_column_info = {}
+        end
+
+        def spatial_sql_type(base_type, subtype = nil)
+          sql_type = base_type.to_s.delete("_").upcase
+          subtype_sql = subtype.to_s
+          if !subtype_sql.empty?
+            "#{sql_type}(#{subtype_sql.delete("_").upcase})"
+          else
+            sql_type
+          end
         end
 
         private
@@ -166,15 +181,14 @@ module ActiveRecord
 
         def visit_ColumnDefinition(o)
           if spatial_column?(o)
-            # Remove underscores from spatial types (multi_point -> MULTIPOINT)
-            sql_type = o.sql_type.to_s.delete("_").upcase
+            sql_type = spatial_sql_type(o.sql_type, o.options[:type])
             column_sql = "#{quote_column_name(o.name)} #{sql_type}"
 
             # Add SRID if specified (MySQL 8.0+ syntax: COLUMN TYPE SRID value)
             column_sql << " SRID #{o.options[:srid]}" if o.options[:srid] && o.options[:srid] != 0
 
             column_sql << " NOT NULL" unless o.null
-            column_sql << " DEFAULT #{quote_default_expression(o.default, o)}" if o.default
+            column_sql << " DEFAULT #{quote_default_expression(o.default, o)}" unless o.default.nil?
             column_sql
           else
             super
