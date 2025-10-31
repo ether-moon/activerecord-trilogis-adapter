@@ -3,6 +3,8 @@
 module Arel
   module Visitors
     class Trilogis < Arel::Visitors::MySQL
+      include RGeo::ActiveRecord::SpatialToSql
+
       # MySQL spatial function mappings
       SPATIAL_FUNCTIONS = {
         "st_contains" => "ST_Contains",
@@ -25,6 +27,25 @@ module Arel
         "st_asbinary" => "ST_AsBinary",
         "st_srid" => "ST_SRID"
       }.freeze
+
+      # Override st_func to use our function mappings
+      def st_func(standard_name)
+        SPATIAL_FUNCTIONS[standard_name.downcase] || standard_name
+      end
+
+      # Override visit_in_spatial_context to use our axis-order logic
+      def visit_in_spatial_context(node, collector)
+        if node.is_a?(String)
+          visit_wkt_string(node, collector)
+        elsif node.is_a?(RGeo::Feature::Instance)
+          visit_RGeo_Feature_Instance(node, collector)
+        elsif node.is_a?(RGeo::Cartesian::BoundingBox)
+          geom = node.to_geometry
+          visit_RGeo_Feature_Instance(geom, collector)
+        else
+          visit(node, collector)
+        end
+      end
 
       def visit_spatial_value(node, collector)
         case node
