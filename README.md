@@ -182,6 +182,52 @@ RGeo::ActiveRecord::SpatialFactoryStore.instance.tap do |config|
 end
 ```
 
+## Technical Notes
+
+### Binary Type Inheritance
+
+The `Spatial` type inherits from `ActiveRecord::Type::Binary` rather than `ActiveModel::Type::Value`. This is critical for proper MySQL spatial data handling:
+
+**Why Binary Inheritance Matters:**
+
+1. **MySQL Binary Format**: MySQL/Trilogy returns GEOMETRY columns as binary BLOB data, not as strings
+2. **Spatial Function Results**: Functions like `ST_Distance()` and `ST_Area()` also flag their results as binary in the result metadata
+3. **ActiveRecord Type Resolution**: ActiveRecord examines result set metadata to determine which type class to use for deserialization
+4. **Attribute Method Generation**: Only `Binary`-derived types properly deserialize binary values and expose computed columns (e.g., `SELECT ST_Distance(...) AS st_distance`) as attribute reader methods
+
+**Impact:**
+
+```ruby
+# With Spatial < Binary (correct)
+place = Place.select("ST_Distance(location, ...) AS distance").first
+place.distance  # ✅ Works - attribute method properly generated
+
+# With Spatial < Value (incorrect)
+place = Place.select("ST_Distance(location, ...) AS distance").first
+place.distance  # ❌ NoMethodError - attribute method not generated
+```
+
+The binary inheritance ensures that:
+- Spatial geometries from database columns are properly deserialized
+- Computed spatial attributes (from `SELECT` with `AS`) become accessible methods
+- Both raw geometry data and numeric results from spatial functions work correctly
+
+### SRID-Based Factory Selection
+
+The adapter automatically selects the appropriate RGeo factory based on SRID:
+
+**Geographic SRIDs** (4326, 4269, 4267, 4258, 4019):
+- Use `RGeo::Geographic.spherical_factory`
+- Support `latitude` and `longitude` methods
+- Calculations use spherical geometry (accurate for Earth)
+
+**Projected SRIDs** (3857, etc.):
+- Use `RGeo::Cartesian.preferred_factory`
+- Calculations use planar/cartesian geometry
+- Better performance for local/projected coordinate systems
+
+This happens automatically during deserialization - no manual factory configuration needed for standard SRIDs.
+
 ## Advanced Features
 
 ### Custom SRID
