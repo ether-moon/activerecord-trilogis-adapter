@@ -121,18 +121,14 @@ module ActiveRecord
           srid = Regexp.last_match(1).to_i
           wkt = Regexp.last_match(2)
 
-          # Use Geographic factory for SRID 4326 (WGS84)
-          geo_factory = if srid == 4326
-                          RGeo::Geographic.spherical_factory(srid: srid)
-                        else
-                          RGeo::Cartesian.preferred_factory(
-                            srid: srid,
-                            has_z_coordinate: false,
-                            has_m_coordinate: false
-                          )
-                        end
+          # Use SpatialFactoryStore to get the appropriate factory
+          geo_factory = RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
+            geo_type: @geo_type,
+            sql_type: @sql_type,
+            srid: srid
+          )
           begin
-            return geo_factory.parse_wkt(wkt)
+            return RGeo::WKRep::WKTParser.new(geo_factory, support_ewkt: true, default_srid: srid).parse(wkt)
           rescue RGeo::Error::ParseError
             return nil
           end
@@ -148,7 +144,8 @@ module ActiveRecord
       end
 
       def parse_wkt(string)
-        factory.parse_wkt(string)
+        # Support EWKT (Extended Well-Known Text) format with SRID
+        RGeo::WKRep::WKTParser.new(spatial_factory, support_ewkt: true, default_srid: @srid).parse(string)
       rescue RGeo::Error::ParseError
         # WKT parsing failed, return nil
         nil
@@ -159,7 +156,8 @@ module ActiveRecord
 
         # MySQL returns WKB as hex string
         binary = [hex_string].pack("H*")
-        factory.parse_wkb(binary)
+        # Support EWKB (Extended Well-Known Binary) format with SRID
+        RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary)
       rescue RGeo::Error::ParseError
         nil
       end
@@ -172,22 +170,18 @@ module ActiveRecord
           srid = binary_string[0..3].unpack1("V") # V = unsigned 32-bit little-endian
           wkb_data = binary_string[4..]
 
-          # Create factory with the correct SRID
-          # Use Geographic factory for SRID 4326 (WGS84)
-          geo_factory = if srid == 4326
-                          RGeo::Geographic.spherical_factory(srid: srid)
-                        else
-                          RGeo::Cartesian.preferred_factory(
-                            srid: srid,
-                            has_z_coordinate: false,
-                            has_m_coordinate: false
-                          )
-                        end
+          # Create factory with the correct SRID using SpatialFactoryStore
+          geo_factory = RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
+            geo_type: @geo_type,
+            sql_type: @sql_type,
+            srid: srid
+          )
 
-          geo_factory.parse_wkb(wkb_data)
+          # Support EWKB format
+          RGeo::WKRep::WKBParser.new(geo_factory, support_ewkb: true, default_srid: srid).parse(wkb_data)
         else
-          # Fall back to standard WKB parsing
-          factory.parse_wkb(binary_string)
+          # Fall back to standard WKB parsing with EWKB support
+          RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary_string)
         end
       rescue RGeo::Error::ParseError, ArgumentError
         # Failed to parse, return nil
@@ -197,15 +191,20 @@ module ActiveRecord
       def cast_hash(hash)
         return nil unless hash.is_a?(Hash)
 
-        # Support GeoJSON-like hashes
-        RGeo::GeoJSON.decode(hash.to_json, geo_factory: factory) if hash["type"] && hash["coordinates"]
+        # Support GeoJSON-like hashes (allow symbol or string keys)
+        normalized_hash = hash.transform_keys(&:to_s)
+        if normalized_hash["type"] && normalized_hash["coordinates"]
+          RGeo::GeoJSON.decode(normalized_hash.to_json, geo_factory: spatial_factory)
+        end
       end
 
-      def factory
-        @factory ||= RGeo::Cartesian.preferred_factory(
-          srid: @srid,
-          has_z_coordinate: false,
-          has_m_coordinate: false
+      def spatial_factory
+        @spatial_factories ||= {}
+
+        @spatial_factories[@srid] ||= RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
+          geo_type: @geo_type,
+          sql_type: @sql_type,
+          srid: @srid
         )
       end
     end
