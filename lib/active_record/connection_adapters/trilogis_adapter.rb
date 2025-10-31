@@ -178,7 +178,9 @@ module ActiveRecord
 
       def type_cast(value, column = nil)
         if column&.type == :geometry && value.is_a?(String)
-          parse_spatial_value(value)
+          # Extract SRID from spatial column if available
+          srid = column.respond_to?(:srid) ? column.srid : DEFAULT_SRID
+          parse_spatial_value(value, srid)
         else
           super
         end
@@ -197,34 +199,34 @@ module ActiveRecord
       end
 
       def configure_rgeo_factory_generator
-        # Set up factory generator for RGeo::ActiveRecord::SpatialFactoryStore
+        # Register Geographic factories for geographic SRIDs in RGeo::ActiveRecord::SpatialFactoryStore
         # This ensures the correct factory (Geographic vs Cartesian) is used based on SRID
-        RGeo::ActiveRecord::SpatialFactoryStore.instance.tap do |factory_store|
-          factory_store.default = ->(config) {
-            srid = (config[:srid] || DEFAULT_SRID).to_i
+        factory_store = RGeo::ActiveRecord::SpatialFactoryStore.instance
 
-            if GEOGRAPHIC_SRIDS.include?(srid)
-              # Use Geographic factory for geographic coordinate systems
-              RGeo::Geographic.spherical_factory(srid: srid)
-            else
-              # Use Cartesian factory for projected coordinate systems
-              RGeo::Cartesian.preferred_factory(
-                srid: srid,
-                has_z_coordinate: false,
-                has_m_coordinate: false
-              )
-            end
-          }
+        # Register Geographic spherical factory for each geographic SRID
+        # The registry will match based on SRID and return the appropriate factory
+        GEOGRAPHIC_SRIDS.each do |srid|
+          factory_store.register(
+            RGeo::Geographic.spherical_factory(srid: srid),
+            srid: srid
+          )
         end
       end
 
-      def parse_spatial_value(value)
+      def parse_spatial_value(value, srid = DEFAULT_SRID)
         return nil if value.nil?
 
-        # Parse WKB hex string
+        # Ensure SRID is an integer (defensive programming for external callers)
+        srid = srid.to_i
+
+        # Parse WKB hex string using SpatialFactoryStore for correct factory selection
         if value.is_a?(String) && value.match?(/\A[0-9a-fA-F]+\z/)
-          factory = RGeo::Cartesian.preferred_factory(srid: DEFAULT_SRID)
-          RGeo::WKRep::WKBParser.new(factory).parse([value].pack("H*"))
+          factory = RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
+            geo_type: "geometry",
+            sql_type: "geometry",
+            srid: srid
+          )
+          RGeo::WKRep::WKBParser.new(factory, support_ewkb: true, default_srid: srid).parse([value].pack("H*"))
         else
           value
         end

@@ -160,8 +160,8 @@ module ActiveRecord
 
         # Build a spatial column from field metadata
         def build_spatial_column(table_name, field, field_name, sql_type)
-          type_metadata = fetch_type_metadata(sql_type)
           spatial_info = spatial_column_info(table_name).get(field_name, sql_type)
+          type_metadata = fetch_type_metadata(sql_type)
 
           SpatialColumn.new(
             field_name,

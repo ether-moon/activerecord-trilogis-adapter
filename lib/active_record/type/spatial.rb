@@ -156,10 +156,34 @@ module ActiveRecord
 
         # MySQL returns WKB as hex string
         binary = [hex_string].pack("H*")
-        # Support EWKB (Extended Well-Known Binary) format with SRID
-        RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary)
-      rescue RGeo::Error::ParseError
+
+        # MySQL internal format: first 4 bytes are SRID (little-endian), then WKB
+        if binary.length >= 5
+          srid = binary[0..3].unpack1("V") # V = unsigned 32-bit little-endian
+          wkb_data = binary[4..]
+
+          # Create appropriate factory based on SRID
+          # Geographic SRIDs (4326, 4269, 4267, 4258, 4019) need spherical factory
+          geo_factory = if geographic_srid?(srid)
+                          RGeo::Geographic.spherical_factory(srid: srid)
+                        else
+                          RGeo::Cartesian.preferred_factory(srid: srid)
+                        end
+
+          # Support EWKB format
+          RGeo::WKRep::WKBParser.new(geo_factory, support_ewkb: true, default_srid: srid).parse(wkb_data)
+        else
+          # Fall back to standard WKB parsing with EWKB support
+          RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary)
+        end
+      rescue RGeo::Error::ParseError, ArgumentError
         nil
+      end
+
+      # Check if SRID represents a geographic coordinate system
+      def geographic_srid?(srid)
+        # Common geographic SRIDs that use latitude-longitude
+        [4326, 4269, 4267, 4258, 4019].include?(srid)
       end
 
       def parse_wkb_binary(binary_string)
@@ -170,12 +194,13 @@ module ActiveRecord
           srid = binary_string[0..3].unpack1("V") # V = unsigned 32-bit little-endian
           wkb_data = binary_string[4..]
 
-          # Create factory with the correct SRID using SpatialFactoryStore
-          geo_factory = RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
-            geo_type: @geo_type,
-            sql_type: @sql_type,
-            srid: srid
-          )
+          # Create appropriate factory based on SRID
+          # Geographic SRIDs (4326, 4269, 4267, 4258, 4019) need spherical factory
+          geo_factory = if geographic_srid?(srid)
+                          RGeo::Geographic.spherical_factory(srid: srid)
+                        else
+                          RGeo::Cartesian.preferred_factory(srid: srid)
+                        end
 
           # Support EWKB format
           RGeo::WKRep::WKBParser.new(geo_factory, support_ewkb: true, default_srid: srid).parse(wkb_data)
