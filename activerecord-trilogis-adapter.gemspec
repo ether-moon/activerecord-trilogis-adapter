@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
     "and adds spatial extensions support via RGeo. Compatible with Rails 8.0+ native Trilogy adapter. " \
     "Requires Ruby 3.2+ and Rails 8.0+."
 
-  spec.version = "8.0.0"
+  spec.version = "8.0.1"
   spec.author = "Ether Moon"
   spec.email = "chipseru@gmail.com"
   spec.homepage = "http://github.com/ether-moon/activerecord-trilogis-adapter"
@@ -19,7 +19,7 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.2.0", "< 3.5"
 
-  spec.add_dependency "activerecord", ">= 8.0", "< 9.0"
+  spec.add_dependency "activerecord", "~> 8.0"
   spec.add_dependency "rgeo", "~> 3.0"
   spec.add_dependency "rgeo-activerecord", "~> 8.0"
 

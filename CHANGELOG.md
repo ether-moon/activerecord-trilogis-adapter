@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.0.1] - 2025-11-03
+
+### Added
+- PostGIS-compatible schema dump support
+- Global spatial type registration at module load time
+- `valid_type?` override for schema dumper compatibility
+
+### Changed
+- **Schema dump format** changed to use actual geometric types (PostGIS-compatible)
+  - Before: `t.geometry "location", limit: {type: "point", srid: 4326}`
+  - After: `t.point "location", limit: {srid: 4326}`
+- `SpatialColumn#type` now returns actual geometric type (`:point`, `:linestring`, etc.) instead of always `:geometry`
+- `SpatialColumn#limit` now only contains SRID, not type (type is in `column.type`)
+- Moved spatial type registration from instance method to module-level initialization
+
+### Removed
+- Removed `register_spatial_types` instance method (now global registration)
+
+### Fixed
+- Refactored code to comply with `frozen_string_literal: true` directive
+  - Replaced string mutation operations (`<<`) with immutable alternatives
+  - Fixed RuboCop style violations (line length, string interpolation)
+
+### Technical Details
+- Spatial types (point, linestring, polygon, etc.) registered globally at module load
+- Schema dumper validates types using `valid_type?` override
+- PostGIS-compatible approach: each geometric type is a distinct Rails type
+- Column type information flow: `column.type` returns geometric type, `column.limit` returns SRID only
+
+### Migration Notes
+**Schema Dump Changes**: Existing schema.rb files will change format on next `db:schema:dump`:
+- Old: `t.geometry "location", limit: {type: "point", srid: 4326}`
+- New: `t.point "location", limit: {srid: 4326}`
+
+This is a cosmetic change - both formats work identically. The new format matches PostgreSQL's PostGIS adapter behavior.
+
 ## [8.0.0] - 2025-10-27
 
 Initial release of ActiveRecord Trilogis Adapter.
