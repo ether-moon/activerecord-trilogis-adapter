@@ -12,6 +12,11 @@ module ActiveRecord
           if options[:srid]
             sql_result = "#{sql} /*!80003 SRID #{options[:srid]} */"
             sql.replace(sql_result)
+
+            # MySQL does not support DEFAULT values for spatial columns
+            # Remove :default option before calling super to prevent SQL errors
+            options = options.dup
+            options.delete(:default)
           end
 
           super

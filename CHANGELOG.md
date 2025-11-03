@@ -35,6 +35,13 @@ Users upgrading from Rails 8.0 should update to Rails 8.1+ before upgrading this
 
 **Breaking Change**: This version requires Rails 8.1.0 or higher. For Rails 8.0 support, use version 8.0.1.
 
+## [8.0.2] - 2025-11-03
+
+### Fixed
+- Spatial columns now silently ignore `default:` option (MySQL limitation)
+- Schema dumps no longer include `default:` for spatial columns
+- Prevents SQL syntax errors when using `default:` in migrations
+
 ## [8.0.1] - 2025-11-03
 
 ### Added
