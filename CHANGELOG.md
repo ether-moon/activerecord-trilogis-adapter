@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [8.1.0] - 2025-11-03
+
+### Added
+- Rails 8.1.0+ compatibility support
+- Nil guards for type registration phase to prevent NoMethodError
+
+### Changed
+- **BREAKING**: Minimum Rails version updated to 8.1.0
+- **BREAKING**: Rails 8.0 support dropped (follows activerecord-postgis-adapter approach)
+- Updated `SpatialColumn#initialize` signature to include `cast_type` parameter (Rails 8.1 Column API)
+- Updated `SchemaStatements#build_spatial_column` to lookup and pass `cast_type` when creating spatial columns
+- Enhanced nil safety in `spatial?` method to handle type registration phase
+- `Type::Spatial#spatial_factory` handles frozen objects for Rails 8.1 Ractor compatibility
+
+### Dependencies
+- Updated `activerecord` dependency: `~> 8.0` → `~> 8.1`
+- Updated `rgeo-activerecord` dependency: `~> 8.0` → `~> 8.1`
+
+### Technical Details
+- `SpatialColumn#initialize` now expects: `(name, cast_type, default, sql_type_metadata, ...)`
+- Added guard against nil `cast_type` during OID type registration
+- Added guard against nil `sql_type_metadata` in spatial type checking
+- Frozen Type::Spatial objects skip instance variable caching to avoid FrozenError
+- Schema dumper compatibility maintained with `cast_type` lookup as "geometry"
+
+### Migration Guide
+Users upgrading from Rails 8.0 should update to Rails 8.1+ before upgrading this gem.
+
+**Breaking Change**: This version requires Rails 8.1.0 or higher. For Rails 8.0 support, use version 8.0.1.
+
 ## [8.0.1] - 2025-11-03
 
 ### Added
