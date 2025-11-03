@@ -57,3 +57,6 @@ Gemfile.lock
 
 # Legacy/deprecated
 /travis/*.lock
+
+# Claude AI settings
+.claude/settings.local.json
