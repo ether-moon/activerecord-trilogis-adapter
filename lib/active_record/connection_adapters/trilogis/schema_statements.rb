@@ -169,7 +169,7 @@ module ActiveRecord
             nil, # MySQL spatial columns cannot have DEFAULT values
             type_metadata,
             extract_field_value(field, :Null, :null) == "YES",
-            extract_field_value(field, :Extra, :extra),
+            nil, # MySQL spatial columns cannot have DEFAULT functions
             collation: extract_field_value(field, :Collation, :collation),
             comment: extract_field_value(field, :Comment, :comment).presence,
             spatial_info: spatial_info

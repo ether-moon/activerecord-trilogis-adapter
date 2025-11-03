@@ -320,6 +320,7 @@ class DDLTest < ActiveSupport::TestCase
     klass.reset_column_information
 
     col = klass.columns.find { |c| c.name == "coord" }
+
     assert_not_nil col
     assert_equal RGeo::Feature::Point, col.geometric_type
     refute col.null # null: false should work
@@ -335,6 +336,7 @@ class DDLTest < ActiveSupport::TestCase
     klass.reset_column_information
 
     col = klass.columns.find { |c| c.name == "coord" }
+
     assert_nil col.default # default should be nil (ignored)
   ensure
     klass.connection.drop_table(:spatial_models) if klass.connection.table_exists?(:spatial_models)
@@ -351,8 +353,29 @@ class DDLTest < ActiveSupport::TestCase
     klass.reset_column_information
 
     col = klass.columns.find { |c| c.name == "location" }
+
     assert_not_nil col
     assert_nil col.default # default should be ignored
+  ensure
+    klass.connection.drop_table(:spatial_models) if klass.connection.table_exists?(:spatial_models)
+  end
+
+  def test_schema_dump_excludes_spatial_default
+    # Verify that schema dump does not include DEFAULT for spatial columns
+    klass.connection.create_table(:spatial_models, force: true) do |t|
+      t.point "coord", srid: 4326, default: -> { "POINT(0 0)" }, null: false
+    end
+
+    require "stringio"
+    stream = StringIO.new
+    ActiveRecord::SchemaDumper.dump(klass.connection, stream)
+    schema = stream.string
+
+    # Schema should not contain 'default' for spatial column
+    coord_line = schema.lines.find { |line| line.include?("coord") && line.include?("t.point") }
+
+    refute_nil coord_line, "Should have t.point line for coord"
+    refute_match(/default:/, coord_line, "Schema dump should not include default: for spatial columns")
   ensure
     klass.connection.drop_table(:spatial_models) if klass.connection.table_exists?(:spatial_models)
   end

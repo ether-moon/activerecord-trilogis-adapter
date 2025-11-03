@@ -93,6 +93,16 @@ module ActiveRecord
           # from generating invalid DEFAULT clauses
           nil
         end
+
+        # Override default_function to always return nil for spatial columns
+        # MySQL does not support DEFAULT values for spatial/geometry columns
+        def default_function
+          return super unless spatial?
+
+          # Always return nil for spatial columns to prevent schema dumper
+          # from generating invalid DEFAULT clauses
+          nil
+        end
       end
     end
   end
