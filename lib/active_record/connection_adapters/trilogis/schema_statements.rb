@@ -77,18 +77,20 @@ module ActiveRecord
           if spatial_type?(type.to_s)
             # Build ALTER TABLE statement for spatial column
             sql_type = spatial_sql_type(type, options[:type])
-            sql = "ALTER TABLE #{quote_table_name(table_name)} ADD #{quote_column_name(column_name)} #{sql_type}"
+            base_sql = "ALTER TABLE #{quote_table_name(table_name)} " \
+                       "ADD #{quote_column_name(column_name)} #{sql_type}"
+            sql_parts = [base_sql]
 
             # Add SRID if specified
-            sql << " SRID #{options[:srid]}" if options[:srid] && options[:srid] != 0
+            sql_parts << " SRID #{options[:srid]}" if options[:srid] && options[:srid] != 0
 
             # Add NULL constraint
-            sql << " NOT NULL" if options[:null] == false
+            sql_parts << " NOT NULL" if options[:null] == false
 
             # Add DEFAULT if specified (allow falsy values like 0/false)
-            sql << " DEFAULT #{quote_default_expression(options[:default], nil)}" if options.key?(:default)
+            sql_parts << " DEFAULT #{quote_default_expression(options[:default], nil)}" if options.key?(:default)
 
-            execute sql
+            execute sql_parts.join
 
             # Clear memoized spatial column info for this table
             clear_spatial_cache_for(table_name)
@@ -180,14 +182,14 @@ module ActiveRecord
         def visit_ColumnDefinition(o)
           if spatial_column?(o)
             sql_type = spatial_sql_type(o.sql_type, o.options[:type])
-            column_sql = "#{quote_column_name(o.name)} #{sql_type}"
+            column_sql_parts = ["#{quote_column_name(o.name)} #{sql_type}"]
 
             # Add SRID if specified (MySQL 8.0+ syntax: COLUMN TYPE SRID value)
-            column_sql << " SRID #{o.options[:srid]}" if o.options[:srid] && o.options[:srid] != 0
+            column_sql_parts << " SRID #{o.options[:srid]}" if o.options[:srid] && o.options[:srid] != 0
 
-            column_sql << " NOT NULL" unless o.null
-            column_sql << " DEFAULT #{quote_default_expression(o.default, o)}" unless o.default.nil?
-            column_sql
+            column_sql_parts << " NOT NULL" unless o.null
+            column_sql_parts << " DEFAULT #{quote_default_expression(o.default, o)}" unless o.default.nil?
+            column_sql_parts.join
           else
             super
           end
