@@ -311,6 +311,52 @@ class DDLTest < ActiveSupport::TestCase
     assert_equal 123, col.limit
   end
 
+  def test_spatial_column_ignores_default_value
+    # MySQL does not support DEFAULT values for spatial columns
+    # Ensure no error is raised and default is silently ignored
+    klass.connection.create_table(:spatial_models, force: true) do |t|
+      t.point "coord", srid: 4326, default: -> { "POINT(0 0)" }, null: false
+    end
+    klass.reset_column_information
+
+    col = klass.columns.find { |c| c.name == "coord" }
+    assert_not_nil col
+    assert_equal RGeo::Feature::Point, col.geometric_type
+    refute col.null # null: false should work
+  ensure
+    klass.connection.drop_table(:spatial_models) if klass.connection.table_exists?(:spatial_models)
+  end
+
+  def test_spatial_column_default_is_always_nil
+    # Verify that default value is always nil for spatial columns
+    klass.connection.create_table(:spatial_models, force: true) do |t|
+      t.point "coord", srid: 4326, default: -> { "POINT(0 0)" }
+    end
+    klass.reset_column_information
+
+    col = klass.columns.find { |c| c.name == "coord" }
+    assert_nil col.default # default should be nil (ignored)
+  ensure
+    klass.connection.drop_table(:spatial_models) if klass.connection.table_exists?(:spatial_models)
+  end
+
+  def test_add_spatial_column_ignores_default_value
+    # Test add_column also ignores default
+    klass.connection.create_table(:spatial_models, force: true) do |t|
+      t.string "name"
+    end
+
+    # Should not raise error even with default specified
+    klass.connection.add_column(:spatial_models, :location, :point, srid: 4326, default: -> { "POINT(0 0)" })
+    klass.reset_column_information
+
+    col = klass.columns.find { |c| c.name == "location" }
+    assert_not_nil col
+    assert_nil col.default # default should be ignored
+  ensure
+    klass.connection.drop_table(:spatial_models) if klass.connection.table_exists?(:spatial_models)
+  end
+
   def test_column_comments
     klass.connection.create_table(:spatial_models, force: true) do |t|
       t.string :sample_comment, comment: "Comment test"

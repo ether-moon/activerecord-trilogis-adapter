@@ -83,6 +83,16 @@ module ActiveRecord
           # Type information is in the type() method
           { srid: @srid }.compact
         end
+
+        # Override default to always return nil for spatial columns
+        # MySQL does not support DEFAULT values for spatial/geometry columns
+        def default
+          return super unless spatial?
+
+          # Always return nil for spatial columns to prevent schema dumper
+          # from generating invalid DEFAULT clauses
+          nil
+        end
       end
     end
   end

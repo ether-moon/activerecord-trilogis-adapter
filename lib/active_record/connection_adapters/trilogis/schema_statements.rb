@@ -87,8 +87,9 @@ module ActiveRecord
             # Add NULL constraint
             sql_parts << " NOT NULL" if options[:null] == false
 
-            # Add DEFAULT if specified (allow falsy values like 0/false)
-            sql_parts << " DEFAULT #{quote_default_expression(options[:default], nil)}" if options.key?(:default)
+            # MySQL does not support DEFAULT values for spatial/geometry columns
+            # Silently ignore :default option to prevent SQL syntax errors
+            # Users should handle defaults at application level instead
 
             execute sql_parts.join
 
@@ -165,7 +166,7 @@ module ActiveRecord
 
           SpatialColumn.new(
             field_name,
-            extract_field_value(field, :Default, :default),
+            nil, # MySQL spatial columns cannot have DEFAULT values
             type_metadata,
             extract_field_value(field, :Null, :null) == "YES",
             extract_field_value(field, :Extra, :extra),
@@ -188,7 +189,10 @@ module ActiveRecord
             column_sql_parts << " SRID #{o.options[:srid]}" if o.options[:srid] && o.options[:srid] != 0
 
             column_sql_parts << " NOT NULL" unless o.null
-            column_sql_parts << " DEFAULT #{quote_default_expression(o.default, o)}" unless o.default.nil?
+
+            # MySQL does not support DEFAULT values for spatial/geometry columns
+            # Silently ignore default to prevent SQL syntax errors
+
             column_sql_parts.join
           else
             super
