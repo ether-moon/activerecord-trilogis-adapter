@@ -13,7 +13,7 @@ module ActiveRecord
 
     module Trilogis
       class SpatialColumn < ActiveRecord::ConnectionAdapters::MySQL::Column
-        attr_reader :geometric_type, :srid
+        attr_reader :geometric_type, :srid, :geo_type_name
 
         # Map SQL type strings to RGeo type classes
         GEOMETRIC_TYPES = {
@@ -35,16 +35,16 @@ module ActiveRecord
 
           if spatial_info
             # Use spatial info from INFORMATION_SCHEMA if available
-            geo_type_str = spatial_info[:type].to_s.downcase
-            @geometric_type = GEOMETRIC_TYPES[geo_type_str] || RGeo::Feature::Geometry
+            @geo_type_name = spatial_info[:type].to_s.downcase
+            @geometric_type = GEOMETRIC_TYPES[@geo_type_name] || RGeo::Feature::Geometry
             @srid = spatial_info[:srid] || 0
             @has_z = spatial_info[:has_z] || false
             @has_m = spatial_info[:has_m] || false
           else
             # Fallback to extracting from SQL type
-            type_info = Type::Spatial.new(sql_type_metadata.sql_type)
-            geo_type_str = type_info.geo_type.to_s.downcase
-            @geometric_type = GEOMETRIC_TYPES[geo_type_str] || RGeo::Feature::Geometry
+            @geo_type_name = sql_type_metadata.sql_type.to_s.downcase
+            type_info = Type::Spatial.new(@geo_type_name)
+            @geometric_type = GEOMETRIC_TYPES[@geo_type_name] || RGeo::Feature::Geometry
             @srid = type_info.srid || 0
             @has_z = false
             @has_m = false
@@ -63,14 +63,25 @@ module ActiveRecord
           @has_m || false
         end
 
+        # Return Rails type for schema dumper
+        # Returns the actual geometric type (point, linestring, etc.) as symbol
+        # This allows schema dumper to generate t.point, t.linestring, etc.
+        def type
+          return super unless spatial?
+
+          # Return actual geometric type as symbol
+          # This matches PostGIS approach and enables proper schema dumping
+          @geo_type_name&.to_sym || :geometry
+        end
+
         # Return limit as hash with spatial metadata for schema dumper
+        # Only includes SRID (type is already in column type)
         def limit
           return super unless spatial?
 
-          {
-            type: sql_type_metadata.sql_type.downcase,
-            srid: @srid
-          }
+          # Only include SRID in limit
+          # Type information is in the type() method
+          { srid: @srid }.compact
         end
       end
     end

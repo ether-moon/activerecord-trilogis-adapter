@@ -104,9 +104,6 @@ module ActiveRecord
         # Override the visitor for spatial support
         @visitor = Arel::Visitors::Trilogis.new(self)
 
-        # Register spatial types
-        register_spatial_types
-
         # Configure RGeo factory generator for SRID-based factory selection
         configure_rgeo_factory_generator
       end
@@ -136,6 +133,11 @@ module ActiveRecord
 
       def schema_creation
         Trilogis::SchemaCreation.new(self)
+      end
+
+      # Override valid_type? to include spatial types
+      def valid_type?(type)
+        SPATIAL_COLUMN_TYPES.include?(type.to_s) || super
       end
 
       def native_database_types
@@ -187,16 +189,6 @@ module ActiveRecord
       end
 
       private
-
-      def register_spatial_types
-        SPATIAL_COLUMN_TYPES.each do |geo_type|
-          ActiveRecord::Type.register(
-            geo_type.to_sym,
-            Type::Spatial.new(geo_type),
-            adapter: :trilogis
-          )
-        end
-      end
 
       def configure_rgeo_factory_generator
         # Register Geographic factories for geographic SRIDs in RGeo::ActiveRecord::SpatialFactoryStore
@@ -262,6 +254,15 @@ module ActiveRecord
       end
     end
   end
+end
+
+# Register spatial types globally
+ActiveRecord::ConnectionAdapters::TrilogisAdapter::SPATIAL_COLUMN_TYPES.each do |geo_type|
+  ActiveRecord::Type.register(
+    geo_type.to_sym,
+    ActiveRecord::Type::Spatial,
+    adapter: :trilogis
+  )
 end
 
 # Register the adapter with ActiveRecord

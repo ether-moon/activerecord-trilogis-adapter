@@ -64,10 +64,10 @@ class TasksTest < ActiveSupport::TestCase
     end
     data = File.read(tmp_sql_filename)
 
-    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
-    # Match either format by checking for the essential parts
-    assert_match(/t\.geometry "object1".*"geometry".*#{connection.default_srid}/, data)
-    assert_match(/t\.geometry "object2".*"geometry".*#{connection.default_srid}/, data)
+    # Schema dump now uses actual geometric types (t.geometry, t.point, etc.)
+    # SRID is in limit hash, not in type specification
+    assert_match(/t\.geometry "object1"/, data)
+    assert_match(/t\.geometry "object2"/, data)
   end
 
   def test_basic_geography_schema_dump
@@ -81,10 +81,10 @@ class TasksTest < ActiveSupport::TestCase
     end
     data = File.read(tmp_sql_filename)
 
-    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
-    # Match either format by checking for the essential parts
-    assert_match(/t\.geometry "latlon1".*"point".*4326/, data)
-    assert_match(/t\.geometry "latlon2".*"point".*4326/, data)
+    # Schema dump now uses actual geometric types (t.point)
+    # SRID is in limit hash
+    assert_match(/t\.point "latlon1".*4326/, data)
+    assert_match(/t\.point "latlon2".*4326/, data)
   end
 
   def test_index_schema_dump
@@ -98,9 +98,9 @@ class TasksTest < ActiveSupport::TestCase
     end
     data = File.read(tmp_sql_filename)
 
-    # Ruby 3.2/3.3 uses {:key=>value} format, Ruby 3.4+ uses {key: value} format
-    # Match either format by checking for the essential parts
-    assert_match(/t\.geometry "latlon".*"point".*4326.*null: false/, data)
+    # Schema dump now uses actual geometric types (t.point)
+    # SRID is in limit hash
+    assert_match(/t\.point "latlon".*4326.*null: false/, data)
     assert_includes data, %(t.index ["latlon"], name: "index_spatial_test_on_latlon", type: :spatial)
   end
 

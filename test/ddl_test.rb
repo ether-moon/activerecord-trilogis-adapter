@@ -227,9 +227,10 @@ class DDLTest < ActiveSupport::TestCase
     col = klass.columns.last
 
     assert_equal RGeo::Feature::Geometry, col.geometric_type
+    # PostGIS-compatible implementation: limit only contains SRID, geometric type is in column.type
     # NOTE: Currently returns srid: 0 due to cache/implementation issue
     # Should ideally return srid: 4326 once caching is properly fixed
-    assert_equal({ type: "geometry", srid: 0 }, col.limit)
+    assert_equal({ srid: 0 }, col.limit)
   end
 
   def test_create_polygon_with_options
@@ -240,8 +241,8 @@ class DDLTest < ActiveSupport::TestCase
     col = klass.columns.last
 
     assert_equal RGeo::Feature::Polygon, col.geometric_type
-    # Verify SRID and limit contain expected values
-    assert_equal({ type: "polygon", srid: 3857 }, col.limit)
+    # PostGIS-compatible implementation: limit only contains SRID, geometric type is in column.type
+    assert_equal({ srid: 3857 }, col.limit)
     # NOTE: has_m option is not yet supported in MySQL implementation
     refute_predicate col, :has_m?
     klass.connection.drop_table(:spatial_models)
@@ -286,7 +287,8 @@ class DDLTest < ActiveSupport::TestCase
 
     assert_equal :integer, klass.columns[-3].type
     assert_equal :string, klass.columns[-2].type
-    assert_equal :geometry, klass.columns[-1].type
+    # PostGIS-compatible implementation: spatial columns return their actual geometric type (:point, :linestring, etc.)
+    assert_equal :point, klass.columns[-1].type
   end
 
   def test_reload_dumped_schema
