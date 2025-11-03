@@ -5,10 +5,10 @@ Gem::Specification.new do |spec|
   spec.summary = "ActiveRecord adapter for MySQL with spatial extensions, built on Trilogy."
   spec.description =
     "ActiveRecord connection adapter for MySQL. It extends the Rails built-in Trilogy adapter " \
-    "and adds spatial extensions support via RGeo. Compatible with Rails 8.0+ native Trilogy adapter. " \
-    "Requires Ruby 3.2+ and Rails 8.0+."
+    "and adds spatial extensions support via RGeo. Compatible with Rails 8.1+ native Trilogy adapter. " \
+    "Requires Ruby 3.2+ and Rails 8.1+."
 
-  spec.version = "8.0.1"
+  spec.version = "8.1.0"
   spec.author = "Ether Moon"
   spec.email = "chipseru@gmail.com"
   spec.homepage = "http://github.com/ether-moon/activerecord-trilogis-adapter"
@@ -19,9 +19,9 @@ Gem::Specification.new do |spec|
 
   spec.required_ruby_version = ">= 3.2.0", "< 3.5"
 
-  spec.add_dependency "activerecord", "~> 8.0"
+  spec.add_dependency "activerecord", "~> 8.1"
   spec.add_dependency "rgeo", "~> 3.0"
-  spec.add_dependency "rgeo-activerecord", "~> 8.0"
+  spec.add_dependency "rgeo-activerecord", "~> 8.1"
 
   spec.add_development_dependency "minitest", "~> 5.4"
   spec.add_development_dependency "mocha", "~> 2.0"

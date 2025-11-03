@@ -27,11 +27,13 @@ module ActiveRecord
           "geometrycollection" => RGeo::Feature::GeometryCollection
         }.freeze
 
-        def initialize(name, default, sql_type_metadata = nil, null = true,
+        def initialize(name, cast_type, default, sql_type_metadata = nil, null = true,
                        default_function = nil, collation: nil, comment: nil, spatial_info: nil, **)
-          super(name, default, sql_type_metadata, null, default_function, collation: collation, comment: comment)
+          super(name, cast_type, default, sql_type_metadata, null, default_function,
+                collation: collation, comment: comment)
 
-          return unless spatial?
+          # Guard against nil cast_type during OID registration
+          return unless cast_type && spatial?
 
           if spatial_info
             # Use spatial info from INFORMATION_SCHEMA if available
@@ -52,6 +54,9 @@ module ActiveRecord
         end
 
         def spatial?
+          # Guard against nil sql_type_metadata during type registration
+          return false unless sql_type_metadata&.sql_type
+
           TrilogisAdapter::SPATIAL_COLUMN_TYPES.include?(sql_type_metadata.sql_type.downcase)
         end
 

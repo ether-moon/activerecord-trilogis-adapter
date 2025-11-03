@@ -8,8 +8,8 @@ gemspec
 gem "byebug" if ENV["BYEBUG"]
 gem "trilogy", "~> 2.9"
 
-# Rails 8.0+ officially supports Ruby 3.4
-gem "activerecord", "~> 8.0.0"
+# Rails 8.1+ officially supports Ruby 3.4
+gem "activerecord", "~> 8.1.0"
 
 # Code quality and linting
 gem "rubocop", "~> 1.81", require: false

@@ -244,8 +244,18 @@ module ActiveRecord
       end
 
       def spatial_factory
-        @spatial_factories ||= {}
+        # Rails 8.1 freezes type objects for Ractor compatibility
+        # If frozen, create factory without caching to avoid FrozenError
+        if frozen?
+          return RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
+            geo_type: @geo_type,
+            sql_type: @sql_type,
+            srid: @srid
+          )
+        end
 
+        # For non-frozen objects, use instance variable caching
+        @spatial_factories ||= {}
         @spatial_factories[@srid] ||= RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
           geo_type: @geo_type,
           sql_type: @sql_type,

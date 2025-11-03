@@ -161,10 +161,19 @@ module ActiveRecord
         # Build a spatial column from field metadata
         def build_spatial_column(table_name, field, field_name, sql_type)
           spatial_info = spatial_column_info(table_name).get(field_name, sql_type)
+
+          # Keep original sql_type in metadata (point, linestring, etc.)
+          # This preserves the actual geometric type for @geo_type_name
           type_metadata = fetch_type_metadata(sql_type)
+
+          # Lookup cast type as "geometry" for schema dumper compatibility
+          # Schema dumper validates cast_type, and only "geometry" is registered as table method
+          # Actual type is preserved in sql_type_metadata and limit hash
+          cast_type = lookup_cast_type("geometry")
 
           SpatialColumn.new(
             field_name,
+            cast_type,
             extract_field_value(field, :Default, :default),
             type_metadata,
             extract_field_value(field, :Null, :null) == "YES",
