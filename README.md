@@ -3,7 +3,7 @@
 [![Gem Version](https://badge.fury.io/rb/activerecord-trilogis-adapter.svg)](https://badge.fury.io/rb/activerecord-trilogis-adapter)
 [![CI](https://github.com/ether-moon/activerecord-trilogis-adapter/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ether-moon/activerecord-trilogis-adapter/actions/workflows/ci.yml)
 
-ActiveRecord adapter for MySQL with spatial extensions, built on Trilogy. Extends the Rails 8.0+ built-in Trilogy adapter with spatial capabilities using the [RGeo](http://github.com/rgeo/rgeo) library.
+ActiveRecord adapter for MySQL with spatial extensions, built on Trilogy. Extends the Rails 8.1+ built-in Trilogy adapter with spatial capabilities using the [RGeo](http://github.com/rgeo/rgeo) library.
 
 ## Overview
 
@@ -17,27 +17,28 @@ The adapter provides three core capabilities:
 
 | Component | Version | Notes |
 |-----------|---------|-------|
-| Ruby | 3.2, 3.3, 3.4 | All versions fully supported |
-| Rails | 8.0.x | Rails 7.x not supported |
+| Ruby | 3.2+ | CI covers 3.2, 3.3, 3.4, and 4.0 |
+| Rails | 8.1.x | Rails 7.x and 8.0.x are not supported |
 | MySQL | 8.0+ | Spatial support required |
 | RGeo | ~> 3.0 | Spatial data handling |
 
 ### Version Compatibility
 
-| Ruby | Rails 8.0 | CI Tested |
+| Ruby | Rails 8.1 | CI Tested |
 |------|-----------|-----------|
 | 3.2  | ✅ | ✅ |
 | 3.3  | ✅ | ✅ |
 | 3.4  | ✅ | ✅ |
+| 4.0  | ✅ | ✅ |
 
-**Dependency Loader**: Universal ActiveRecord module pre-loading ensures consistent behavior across Ruby 3.2-3.4, handling Ruby 3.4's autoload mechanism changes.
+**Dependency Loader**: Universal ActiveRecord module pre-loading ensures consistent behavior across Ruby 3.2+, including Ruby 3.4's autoload mechanism changes.
 
 ## Installation
 
 Add to your Gemfile:
 
 ```ruby
-gem 'activerecord-trilogis-adapter', '~> 8.0'
+gem 'activerecord-trilogis-adapter', '~> 8.1'
 ```
 
 ## Configuration
@@ -59,7 +60,7 @@ development:
 ### Migrations
 
 ```ruby
-class CreatePlaces < ActiveRecord::Migration[8.0]
+class CreatePlaces < ActiveRecord::Migration[8.1]
   def change
     create_table :places do |t|
       t.string :name
@@ -233,7 +234,7 @@ This happens automatically during deserialization - no manual factory configurat
 ### Custom SRID
 
 ```ruby
-class CreateCities < ActiveRecord::Migration[8.0]
+class CreateCities < ActiveRecord::Migration[8.1]
   def change
     create_table :cities do |t|
       # Japanese Plane Rectangular CS VI (SRID: 2448)
@@ -261,7 +262,7 @@ GitHub Actions CI pipeline with comprehensive testing:
 
 **Jobs:**
 - **Lint**: RuboCop code quality (Ruby 3.4)
-- **Test Matrix**: Ruby 3.2/3.3/3.4 × Rails 8.0 × MySQL 8.0
+- **Test Matrix**: Ruby 3.2/3.3/3.4/4.0 × Rails 8.1 × MySQL 8.0
 
 **Triggers:**
 - Push to `main` or `develop`
@@ -337,16 +338,16 @@ bundle console
 
 ## Migration Guide
 
-### Upgrading to 8.0
+### Upgrading to 8.1
 
 **Prerequisites:**
-- Rails 8.0+ (Rails 7.x not supported)
-- Ruby 3.2, 3.3, or 3.4
+- Rails 8.1+ (Rails 7.x and 8.0.x not supported)
+- Ruby 3.2+
 
 **Steps:**
-1. Update Gemfile: `gem 'activerecord-trilogis-adapter', '~> 8.0'`
+1. Update Gemfile: `gem 'activerecord-trilogis-adapter', '~> 8.1'`
 2. Run: `bundle update activerecord-trilogis-adapter`
-3. Verify Rails version: `bundle info rails` (must be 8.0+)
+3. Verify Rails version: `bundle info rails` (must be 8.1+)
 4. Test: `bundle exec rake test`
 
 **API Compatibility:** No code changes required - adapter API remains backward compatible

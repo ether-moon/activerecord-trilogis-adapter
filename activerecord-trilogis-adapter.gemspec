@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir["lib/**/*", "LICENSE"]
   spec.platform = Gem::Platform::RUBY
 
-  spec.required_ruby_version = ">= 3.2.0", "< 3.5"
+  spec.required_ruby_version = ">= 3.2.0", "< 5.0"
 
   spec.add_dependency "activerecord", "~> 8.1"
   spec.add_dependency "rgeo", "~> 3.0"
