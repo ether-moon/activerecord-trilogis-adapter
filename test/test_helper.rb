@@ -23,6 +23,8 @@ module ActiveRecord
   end
 end
 
+# rubocop:disable Style/OneClassPerFile
+
 class SpatialModel < ActiveRecord::Base
   establish_test_connection
 end
@@ -93,3 +95,5 @@ module ActiveSupport
     end
   end
 end
+
+# rubocop:enable Style/OneClassPerFile
