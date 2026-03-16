@@ -8,7 +8,7 @@ gemspec
 gem "byebug" if ENV["BYEBUG"]
 gem "trilogy", "~> 2.9"
 
-# Rails 8.1+ officially supports Ruby 3.4
+# Development target for the adapter itself
 gem "activerecord", "~> 8.1.0"
 
 # Code quality and linting
