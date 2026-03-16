@@ -6,6 +6,7 @@ RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
     build-essential \
     default-libmysqlclient-dev \
+    default-mysql-client \
     git \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -18,7 +19,7 @@ COPY Gemfile* ./
 COPY activerecord-trilogis-adapter.gemspec ./
 COPY lib/active_record/connection_adapters/trilogis/version.rb ./lib/active_record/connection_adapters/trilogis/
 
-RUN bundle config set --local path 'vendor/bundle' && \
+RUN bundle config set --local path '/usr/local/bundle' && \
     bundle install --jobs 4 --retry 3
 
 # Copy application code

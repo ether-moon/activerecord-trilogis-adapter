@@ -7,11 +7,9 @@ CREATE DATABASE IF NOT EXISTS trilogis_adapter_test CHARACTER SET utf8mb4 COLLAT
 -- Create additional test database for tasks_test.rb
 CREATE DATABASE IF NOT EXISTS trilogis_tasks_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
--- Grant all privileges to root and trilogis users
+-- Grant all privileges to the root user used by the test container
 GRANT ALL PRIVILEGES ON trilogis_adapter_test.* TO 'root'@'%';
 GRANT ALL PRIVILEGES ON trilogis_tasks_test.* TO 'root'@'%';
-GRANT ALL PRIVILEGES ON trilogis_adapter_test.* TO 'trilogis'@'%';
-GRANT ALL PRIVILEGES ON trilogis_tasks_test.* TO 'trilogis'@'%';
 
 FLUSH PRIVILEGES;
 
