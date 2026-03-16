@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [8.1.2] - 2026-03-16
+
 ### Changed
 - Relaxed the Ruby upper bound from `< 3.5` to `< 5.0` so Bundler can resolve the gem on Ruby 4.x.
 - Added Ruby 4.0 to the CI test matrix.

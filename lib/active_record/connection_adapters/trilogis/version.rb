@@ -3,7 +3,7 @@
 module ActiveRecord
   module ConnectionAdapters
     module Trilogis
-      VERSION = "8.1.1"
+      VERSION = "8.1.2"
     end
   end
 end
