@@ -4,6 +4,8 @@ require "test_helper"
 require "open3"
 
 class TypeTest < Minitest::Test
+  POINT_WKB_HEX = %w[0101000000000000000000F03F0000000000000040 00000000013FF00000000000004000000000000000].freeze
+
   def test_constructor_parses_spatial_type_and_srid
     { "POINT" => ["point", 0], "geometry(Point,4326)" => ["point", 4326],
       "geometry(MultiPolygon,3857)" => ["multipolygon", 3857] }.each do |sql_type, expected|
@@ -29,6 +31,51 @@ class TypeTest < Minitest::Test
     assert_equal point, spatial.deserialize(binary)
     assert_equal point, spatial.deserialize(binary.unpack1("H*"))
     refute spatial.changed_in_place?(binary, point)
+  end
+
+  def test_standard_wkb_uses_column_srid_in_both_byte_orders
+    type = ActiveRecord::Type::Spatial.new("geometry(point,4326)")
+    POINT_WKB_HEX.each do |hex|
+      [type.cast(hex), type.deserialize(hex), type.deserialize([hex].pack("H*"))].each do |point|
+        refute_nil point
+        assert_equal [4326, 1, 2], [point.srid, point.x, point.y]
+      end
+    end
+  end
+
+  def test_mysql_wkb_keeps_prefix_srid_even_when_it_resembles_a_wkb_header
+    type = ActiveRecord::Type::Spatial.new("geometry(point,3857)")
+    [0, 1, 4326].each do |srid|
+      POINT_WKB_HEX.each do |hex|
+        binary = [srid].pack("V") + [hex].pack("H*")
+        mysql_hex = binary.unpack1("H*")
+        [type.cast(mysql_hex), type.deserialize(mysql_hex), type.deserialize(binary)].each do |point|
+          refute_nil point
+          assert_equal [srid, 1, 2], [point.srid, point.x, point.y]
+        end
+      end
+    end
+  end
+
+  def test_malformed_and_trailing_wkb_hex_remains_invalid
+    hex = "0101000000000000000000F03F0000000000000040"
+    mysql_hex = "E6100000#{hex}"
+    [hex, mysql_hex].each do |valid_hex|
+      [valid_hex[0...-1], "#{valid_hex}00", "#{valid_hex}\n00"].each do |invalid_hex|
+        assert_nil spatial.cast(invalid_hex)
+        assert_nil spatial.deserialize(invalid_hex)
+      end
+    end
+  end
+
+  def test_truncated_and_trailing_wkb_binary_remains_invalid
+    hex = POINT_WKB_HEX.first
+    [hex, "E6100000#{hex}"].each do |valid_hex|
+      binary = [valid_hex].pack("H*")
+
+      assert_nil spatial.deserialize(binary.byteslice(0...-1))
+      assert_nil spatial.deserialize("#{binary}\x00".b)
+    end
   end
 
   def test_invalid_wkt_keeps_nil_casting_behavior

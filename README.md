@@ -44,6 +44,8 @@ Coordinates are longitude/latitude for geographic SRIDs and X/Y for projected SR
 
 Omitting `srid:` leaves the column unrestricted. Explicit `srid: 0` restricts it to SRID 0. Schema dumps preserve this distinction. Legacy `has_z`, `has_m`, and `geographic` migration options remain no-ops; MySQL values are two-dimensional.
 
+Standard WKB hex input uses the column's SRID. MySQL-prefixed WKB keeps its stored SRID. Temporary tables have no spatial metadata in INFORMATION_SCHEMA, so their column introspection falls back to the SQL type without reporting an SRID constraint.
+
 Custom factories can be registered through `RGeo::ActiveRecord::SpatialFactoryStore.instance.register(factory, geo_type: "point", srid: 4326)`. They apply to parsing and database reads. GeoJSON hashes require the optional `rgeo-geojson` gem and `require "rgeo/geo_json"`; missing that library raises `ArgumentError`. Invalid WKT continues to cast to `nil` for compatibility.
 
 ## Development
@@ -62,6 +64,6 @@ bundle exec rake build
 
 `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` override test connection settings. Tests create/drop tables and a task-test database: use a dedicated local MySQL server. The Compose volume persists its original credentials; changing YAML does not change an existing database user's password.
 
-Commit `Gemfile.lock` updates with dependency changes. Coverage is optional and has no percentage gate. Build uses Bundler's standard task. Maintainers publish with `bundle exec rake release` after validation and release approval; it creates/pushes the release tag and publishes the gem.
+Commit `Gemfile.lock` updates with dependency changes. Coverage is optional and has no percentage gate. Build uses Bundler's standard task. Before publishing, update `spec.version` in `activerecord-trilogis-adapter.gemspec` to the approved release version, run `bundle install` to update `Gemfile.lock`, and commit both files. After validation and release approval, maintainers run `bundle exec rake release`; it creates/pushes the release tag and publishes the gem.
 
 See [CHANGELOG.md](CHANGELOG.md) for migration notes and [SECURITY.md](SECURITY.md) for the support and reporting policy.

@@ -6,10 +6,8 @@ module RGeo
       # MySQL-specific spatial expressions
       module SpatialExpressions
         # Keep Arel expressions intact; the upstream implementation coerces distance to Float.
-        def st_buffer(distance, units = nil)
-          args = [self, distance]
-          args << units.to_s if units
-          SpatialNamedFunction.new("ST_Buffer", args, [true, true, false])
+        def st_buffer(distance)
+          SpatialNamedFunction.new("ST_Buffer", [self, distance], [true, true, false])
         end
 
         # MySQL ST_Distance_Sphere for geographic distance calculations

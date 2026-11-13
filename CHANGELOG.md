@@ -14,8 +14,10 @@
 - Schema dumps now omit `limit: {srid: 0}` for unrestricted columns. Explicit SRID 0 remains a constraint. Regenerate schema dumps/caches from the live database; an older incorrect dump cannot recover lost constraints.
 - Always use longitude/latitude axis order when writing geographic values, including SRIDs outside the previous five-entry list. Existing stored values are not modified. Inspect affected columns using `ST_Longitude`/`ST_Latitude` against known source coordinates. After backup and validation, `ST_SwapXY` can repair rows confirmed to be reversed; do not apply it to all rows indiscriminately.
 - Isolate spatial types from plain Trilogy connections and honor registered factories on database reads without adding registrations per connection. Keep existing geographic factory defaults.
-- Restore upstream spatial expression signatures/results and quote scalar function arguments for Rails 8.1.
-- Retain GeoJSON input with an actionable error if its optional dependency is missing; pass hashes directly to the decoder to avoid JSON parser version coupling. Invalid spatial string casting and legacy no-op migration options remain unchanged.
+- Restore upstream spatial expression signatures/results and quote scalar function arguments for Rails 8.1. Keep `st_buffer(distance)` as a one-argument method that preserves Arel radius expressions; MySQL does not accept buffer units as strategy arguments.
+- Load temporary spatial columns when INFORMATION_SCHEMA has no metadata, preserving the existing SQL-type fallback without inferring an SRID constraint.
+- Accept standard WKB hex and binary values using the column SRID, while preferring valid MySQL-prefixed WKB and its stored SRID. Reject malformed hex and trailing WKB data.
+- Retain GeoJSON input with an actionable error if its optional dependency is missing; pass hashes directly to the decoder to avoid JSON parser version coupling. Invalid WKT casting and legacy no-op migration options remain unchanged.
 
 ### Maintenance
 

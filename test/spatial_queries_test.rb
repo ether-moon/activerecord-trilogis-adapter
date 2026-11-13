@@ -109,6 +109,12 @@ class SpatialQueriesTest < ActiveSupport::TestCase
     assert_equal "ST_Buffer(`spatial_models`.`latlon`, radius * 2)", sql
   end
 
+  def test_buffer_rejects_units_instead_of_emitting_a_mysql_strategy
+    assert_raises(ArgumentError) do
+      SpatialModel.arel_table[:latlon].st_buffer(100, "metre")
+    end
+  end
+
   def test_generic_function_keeps_spatial_constant_nodes
     connection = SpatialModel.lease_connection
     expression = Arel.spatial(factory.point(1, 2)).st_function("ST_X")

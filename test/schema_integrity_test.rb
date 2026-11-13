@@ -113,6 +113,24 @@ class SchemaIntegrityTest < ActiveSupport::TestCase
     assert_equal [4326, :point], [column.srid, column.type]
   end
 
+  def test_temporary_table_columns_load_without_information_schema_metadata
+    connection = SpatialModel.lease_connection
+    connection.create_table(:spatial_test, temporary: true) do |t|
+      t.point :location, srid: 4326
+      t.geometry_collection :shapes
+    end
+
+    assert_empty ActiveRecord::ConnectionAdapters::Trilogis::SpatialColumnInfo.new(connection, :spatial_test).all
+    columns = nil
+    assert_nothing_raised { columns = connection.columns(:spatial_test).select(&:spatial?) }
+
+    assert_equal %i[point geometrycollection], columns.map(&:type)
+    assert_equal [RGeo::Feature::Point, RGeo::Feature::GeometryCollection], columns.map(&:geometric_type)
+    assert(columns.all? { |column| column.srid_constraint.nil? })
+  ensure
+    connection&.execute("DROP TEMPORARY TABLE IF EXISTS spatial_test")
+  end
+
   def test_other_database_uses_its_own_spatial_metadata
     connection = SpatialModel.lease_connection
     connection.create_table(:spatial_models, force: true) { |t| t.point :location, srid: 4326 }

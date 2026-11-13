@@ -102,12 +102,11 @@ module ActiveRecord
           end
         end
 
-        # Try to parse as WKT
-        if string.match?(/^[A-Z]/i)
-          parse_wkt(string)
-        # Try to parse as WKB hex
-        elsif string.match?(/^[0-9a-fA-F]+$/)
+        # Hex can start with a letter, including MySQL's SRID 4326 prefix (e6100000).
+        if string.match?(/\A[0-9a-fA-F]+\z/)
           parse_wkb_hex(string)
+        elsif string.match?(/^[A-Z]/i)
+          parse_wkt(string)
         end
       end
 
@@ -120,6 +119,8 @@ module ActiveRecord
       end
 
       def parse_wkb_hex(hex_string)
+        return nil if hex_string.length.odd?
+
         parse_wkb_binary([hex_string].pack("H*"))
       end
 
@@ -129,11 +130,15 @@ module ActiveRecord
         # MySQL binary values contain a four-byte SRID prefix followed by WKB.
         if binary_string.bytesize >= 5
           srid = binary_string.unpack1("V")
-          RGeo::WKRep::WKBParser.new(spatial_factory(srid), support_ewkb: true, default_srid: srid)
-                                .parse(binary_string.byteslice(4..))
-        else
-          RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary_string)
+          begin
+            parser = RGeo::WKRep::WKBParser.new(spatial_factory(srid), support_ewkb: true, default_srid: srid)
+            return parser.parse(binary_string.byteslice(4..))
+          rescue RGeo::Error::ParseError, ArgumentError
+            # Standard WKB has no MySQL prefix; parse the complete input below.
+          end
         end
+
+        RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary_string)
       rescue RGeo::Error::ParseError, ArgumentError
         nil
       end

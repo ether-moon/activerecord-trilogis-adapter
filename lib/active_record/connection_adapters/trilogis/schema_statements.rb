@@ -34,12 +34,13 @@ module ActiveRecord
         end
 
         def new_column_from_field(table_name, field, definitions = nil)
-          return super unless TrilogisAdapter.spatial_type(field["Type"])
+          return super unless (spatial_type = TrilogisAdapter.spatial_type(field["Type"]))
 
           @spatial_column_metadata ||= SpatialColumnInfo.new(self, table_name).all
-          info = @spatial_column_metadata.fetch(field["Field"])
+          info = @spatial_column_metadata[field["Field"]]
+          cast_type = Type::Spatial.new(info ? "geometry(#{info[:type]},#{info[:srid] || 0})" : spatial_type).freeze
           SpatialColumn.new(
-            field["Field"], Type::Spatial.new("geometry(#{info[:type]},#{info[:srid] || 0})").freeze,
+            field["Field"], cast_type,
             nil, fetch_type_metadata(field["Type"]), field["Null"] == "YES", nil,
             collation: field["Collation"], comment: field["Comment"].presence, spatial_info: info
           )

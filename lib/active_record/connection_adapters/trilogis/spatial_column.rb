@@ -45,7 +45,7 @@ module ActiveRecord
             @has_m = spatial_info[:has_m] || false
           else
             # Fallback to extracting from SQL type
-            @geo_type_name = sql_type_metadata.sql_type.to_s.downcase
+            @geo_type_name = TrilogisAdapter.spatial_type(sql_type_metadata.sql_type)
             type_info = Type::Spatial.new(@geo_type_name)
             @geometric_type = GEOMETRIC_TYPES[@geo_type_name] || RGeo::Feature::Geometry
             @srid = type_info.srid || 0
