@@ -1,6 +1,6 @@
 # Draft: SQL injection in spatial string arguments
 
-Status: local draft, not submitted or published. Confirm affected release tags and the final patched version before publication.
+Status: local draft, not submitted or published. Confirm affected release tags before advisory publication.
 
 ## Impact
 
@@ -12,7 +12,7 @@ The prior investigation identified 8.0.0 through 8.1.2 as affected. This impleme
 
 All spatial WKT/EWKT strings pass through the connection's quoting implementation. Regression tests cover spatial predicates, `Arel.spatial`, generic spatial `NamedFunction`, EWKT, and an executed predicate payload against local MySQL. Trilogy >= 2.13.3 is also required at runtime.
 
-Patched release: not published yet. The 8.0.x line will not receive a backport.
+Patched version: 8.1.3. The 8.0.x line will not receive a backport.
 
 ## Temporary mitigation
 

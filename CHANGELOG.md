@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [8.1.3] - 2026-11-13
 
 ### Security
 
@@ -27,14 +34,6 @@
 - Remove unused spatial visitor callbacks, the duplicate instance SQL-type parser, obsolete spatial-column hooks, and the unused Docker initialization script. Test the real type constructor and WKT/EWKT/MySQL binary paths.
 - Update the remaining `multi_json` development dependency to 1.21.2.
 - Lock development dependencies; add dependency audits, monthly grouped dependency updates, and a three-cell CI matrix with default MySQL authentication.
-
-
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
 
 ## [8.1.2] - 2026-03-16
 

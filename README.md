@@ -2,7 +2,7 @@
 
 MySQL spatial columns and RGeo queries on Rails' Trilogy adapter.
 
-The changes described below are **unreleased**. Published version 8.1.2 does not contain the security fixes in this branch.
+Version 8.1.3 includes the security fixes described below. Version 8.1.2 does not contain these fixes; upgrade to 8.1.3 or later.
 
 ## Support
 
