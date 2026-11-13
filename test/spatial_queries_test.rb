@@ -75,10 +75,55 @@ class SpatialQueriesTest < ActiveSupport::TestCase
     assert_nil(obj3)
   end
 
+  def test_buffer_result_can_be_used_as_a_spatial_expression
+    create_model
+    SpatialModel.create!(latlon: factory.point(1, 2))
+    buffer = SpatialModel.arel_table[:latlon].st_buffer(2)
+
+    assert_predicate buffer, :spatial_result?
+    assert_operator SpatialModel.pick(buffer.st_area), :>, 12
+  end
+
+  def test_length_accepts_units_as_a_quoted_scalar
+    create_model
+    path = factory.line(factory.point(1, 2), factory.point(3, 2))
+    SpatialModel.create!(path: path)
+
+    assert_in_delta 2, SpatialModel.pick(SpatialModel.arel_table[:path].st_length("metre"))
+  end
+
+  def test_buffer_keeps_column_radius_expression
+    table = SpatialModel.arel_table
+    sql = nil
+    assert_nothing_raised do
+      sql = SpatialModel.lease_connection.visitor.compile(table[:latlon].st_buffer(table[:radius]))
+    end
+
+    assert_equal "ST_Buffer(`spatial_models`.`latlon`, `spatial_models`.`radius`)", sql
+  end
+
+  def test_buffer_keeps_sql_radius_expression
+    expression = SpatialModel.arel_table[:latlon].st_buffer(Arel.sql("radius * 2"))
+    sql = SpatialModel.lease_connection.visitor.compile(expression)
+
+    assert_equal "ST_Buffer(`spatial_models`.`latlon`, radius * 2)", sql
+  end
+
+  def test_generic_function_keeps_spatial_constant_nodes
+    connection = SpatialModel.lease_connection
+    expression = Arel.spatial(factory.point(1, 2)).st_function("ST_X")
+    value = nil
+    assert_nothing_raised do
+      value = connection.select_value("SELECT #{connection.visitor.compile(expression)}")
+    end
+
+    assert_in_delta(1.0, value)
+  end
+
   private
 
   def create_model
-    SpatialModel.connection.create_table(:spatial_models, force: true) do |t|
+    SpatialModel.lease_connection.create_table(:spatial_models, force: true) do |t|
       t.column "latlon", :point, srid: 3857
       t.column "points", :multi_point, srid: 3857
       t.column "path", :line_string, srid: 3857

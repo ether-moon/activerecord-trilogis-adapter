@@ -5,7 +5,7 @@ require_relative "test_helper"
 class FeatureParityTest < ActiveSupport::TestCase
   def setup
     super
-    @connection = SpatialModel.connection
+    @connection = SpatialModel.lease_connection
   end
 
   def test_spatial_column_info_available
@@ -28,7 +28,7 @@ class FeatureParityTest < ActiveSupport::TestCase
   def test_supports_spatial_with_version_check
     if @connection.mariadb?
       refute_predicate @connection, :supports_spatial?
-    elsif @connection.database_version >= "5.7.6"
+    elsif @connection.database_version >= "8.0"
       # For MySQL, depends on version
       assert_predicate @connection, :supports_spatial?
     else
@@ -105,8 +105,8 @@ class FeatureParityTest < ActiveSupport::TestCase
     ]
 
     spatial_functions.each do |func|
-      assert_includes RGeo::ActiveRecord::Trilogis::SpatialExpressions.instance_methods, func.to_sym,
-                      "Spatial function #{func} should be available"
+      assert_respond_to SpatialModel.arel_table[:location], func.to_sym,
+                        "Spatial function #{func} should be available"
     end
   end
 

@@ -15,48 +15,6 @@ require_relative "../type/spatial"
 require_relative "../tasks/trilogis_database_tasks"
 
 module ActiveRecord
-  module ConnectionHandling
-    # Establishes a connection to the database using the Trilogis adapter.
-    # This adapter extends the built-in Trilogy adapter with spatial support.
-    def trilogis_connection(config)
-      configuration = config.dup
-
-      # Ensure required configuration
-      configuration[:prepared_statements] = true unless configuration.key?(:prepared_statements)
-
-      # Build connection options for Trilogy
-      connection_options = {
-        host: configuration[:host],
-        port: configuration[:port],
-        database: configuration[:database],
-        username: configuration[:username],
-        password: configuration[:password],
-        socket: configuration[:socket],
-        encoding: configuration[:encoding],
-        ssl_mode: configuration[:ssl_mode],
-        connect_timeout: configuration[:connect_timeout],
-        read_timeout: configuration[:read_timeout],
-        write_timeout: configuration[:write_timeout]
-      }.compact
-
-      # Create the Trilogy client connection
-      require "trilogy"
-      client = Trilogy.new(connection_options)
-
-      # Return our spatial-enabled adapter
-      ConnectionAdapters::TrilogisAdapter.new(
-        client,
-        logger,
-        nil,
-        configuration
-      )
-    rescue Trilogy::Error => e
-      raise ActiveRecord::NoDatabaseError if e.message.include?("Unknown database")
-
-      raise
-    end
-  end
-
   module ConnectionAdapters
     class TrilogisAdapter < TrilogyAdapter
       ADAPTER_NAME = "Trilogis"
@@ -75,6 +33,12 @@ module ActiveRecord
         geometrycollection
       ].freeze
 
+      def self.spatial_type(type)
+        name = type.to_s.downcase.delete("_")
+        name = "geometrycollection" if name == "geomcollection"
+        name if SPATIAL_COLUMN_TYPES.include?(name)
+      end
+
       # Default SRID for MySQL
       DEFAULT_SRID = 0
 
@@ -83,61 +47,20 @@ module ActiveRecord
       # in longitude-latitude order instead of MySQL's default latitude-longitude
       AXIS_ORDER_LONG_LAT = "'axis-order=long-lat'"
 
-      # Common geographic SRIDs that use latitude-longitude by default in MySQL 8.0
-      # These need axis-order parameter to work with standard GIS longitude-latitude format
-      GEOGRAPHIC_SRIDS = [
-        4326, # WGS 84 (GPS)
-        4269, # NAD83
-        4267, # NAD27
-        4258, # ETRS89
-        4019  # Unknown datum based upon the GRS 1980 ellipsoid
-      ].freeze
-
-      # Class method to check if a type is spatial
-      def self.spatial_column_options(type)
-        SPATIAL_COLUMN_TYPES.include?(type.to_s.downcase)
-      end
-
-      def initialize(...)
-        super
-
-        # Override the visitor for spatial support
-        @visitor = Arel::Visitors::Trilogis.new(self)
-
-        # Configure RGeo factory generator for SRID-based factory selection
-        configure_rgeo_factory_generator
-      end
-
-      def adapter_name
-        ADAPTER_NAME
+      def self.valid_type?(type)
+        !!spatial_type(type) || super
       end
 
       def supports_spatial?
-        # MySQL 5.7.6+ supports spatial indexes and functions
-        # MariaDB has different spatial support, so we exclude it for now
-        !mariadb? && database_version >= "5.7.6"
+        !mariadb? && database_version >= "8.0"
       end
 
       def default_srid
         DEFAULT_SRID
       end
 
-      def spatial_column_options(_table_name)
-        # Return empty hash as MySQL stores spatial metadata in information_schema
-        {}
-      end
-
-      def with_connection
-        yield self
-      end
-
       def schema_creation
         Trilogis::SchemaCreation.new(self)
-      end
-
-      # Override valid_type? to include spatial types
-      def valid_type?(type)
-        SPATIAL_COLUMN_TYPES.include?(type.to_s) || super
       end
 
       def native_database_types
@@ -163,26 +86,8 @@ module ActiveRecord
         if value.is_a?(RGeo::Feature::Instance)
           srid = value.srid || DEFAULT_SRID
 
-          # For geographic SRIDs, use axis-order parameter to ensure longitude-latitude order
-          # MySQL 8.0 defaults to latitude-longitude for geographic SRS, but GIS tools use long-lat
-          # ST_GeomFromWKB DOES support axis-order parameter in MySQL 8.0+
           wkb_hex = RGeo::WKRep::WKBGenerator.new(hex_format: true, little_endian: true).generate(value)
-          if geographic_srid?(srid)
-            "ST_GeomFromWKB(0x#{wkb_hex}, #{srid}, #{AXIS_ORDER_LONG_LAT})"
-          else
-            # For projected SRIDs (like 3857), no axis-order needed - uses cartesian X,Y
-            "ST_GeomFromWKB(0x#{wkb_hex}, #{srid})"
-          end
-        else
-          super
-        end
-      end
-
-      def type_cast(value, column = nil)
-        if column&.type == :geometry && value.is_a?(String)
-          # Extract SRID from spatial column if available
-          srid = column.respond_to?(:srid) ? column.srid : DEFAULT_SRID
-          parse_spatial_value(value, srid)
+          "ST_GeomFromWKB(0x#{wkb_hex}, #{srid}, #{AXIS_ORDER_LONG_LAT})"
         else
           super
         end
@@ -190,52 +95,17 @@ module ActiveRecord
 
       private
 
-      def configure_rgeo_factory_generator
-        # Register Geographic factories for geographic SRIDs in RGeo::ActiveRecord::SpatialFactoryStore
-        # This ensures the correct factory (Geographic vs Cartesian) is used based on SRID
-        factory_store = RGeo::ActiveRecord::SpatialFactoryStore.instance
-
-        # Register Geographic spherical factory for each geographic SRID
-        # The registry will match based on SRID and return the appropriate factory
-        GEOGRAPHIC_SRIDS.each do |srid|
-          factory_store.register(
-            RGeo::Geographic.spherical_factory(srid: srid),
-            srid: srid
-          )
-        end
-      end
-
-      def parse_spatial_value(value, srid = DEFAULT_SRID)
-        return nil if value.nil?
-
-        # Ensure SRID is an integer (defensive programming for external callers)
-        srid = srid.to_i
-
-        # Parse WKB hex string using SpatialFactoryStore for correct factory selection
-        if value.is_a?(String) && value.match?(/\A[0-9a-fA-F]+\z/)
-          factory = RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
-            geo_type: "geometry",
-            sql_type: "geometry",
-            srid: srid
-          )
-          RGeo::WKRep::WKBParser.new(factory, support_ewkb: true, default_srid: srid).parse([value].pack("H*"))
-        else
-          value
-        end
-      end
-
-      # Check if a SRID is geographic (uses latitude-longitude coordinate system)
-      def geographic_srid?(srid)
-        GEOGRAPHIC_SRIDS.include?(srid)
+      def arel_visitor
+        Arel::Visitors::Trilogis.new(self)
       end
 
       # Override type_map to include spatial types
       def type_map
         @type_map ||= begin
-          map = super.dup
+          map = Type::TypeMap.new(super)
 
           # Add spatial types
-          SPATIAL_COLUMN_TYPES.each do |geo_type|
+          (SPATIAL_COLUMN_TYPES + ["geomcollection"]).each do |geo_type|
             map.register_type(geo_type) do |sql_type|
               Type::Spatial.new(sql_type)
             end
@@ -243,14 +113,6 @@ module ActiveRecord
 
           map
         end
-      end
-
-      def translate_exception(exception, message:, sql:, binds:)
-        if exception.is_a?(::Trilogy::SSLError)
-          return ActiveRecord::ConnectionFailed.new(message, connection_pool: @pool)
-        end
-
-        super
       end
     end
   end

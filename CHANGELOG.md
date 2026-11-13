@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- Quote WKT/EWKT values in every spatial Arel string path.
+- Require Trilogy >= 2.13.3 and < 3 at runtime, including fixes for multibyte escaping and error-buffer lifetime.
+- Require ActiveRecord >= 8.1.4.1 and < 8.2 and Ruby >= 3.3. End support for the gem's 8.0.x line without backports. MySQL 8.0 remains supported alongside 8.4.
+
+### Correctness and migration notes
+
+- Preserve spatial metadata in column identity and YAML caches. Preserve SRID through aliases, schema dumps, and column null/comment changes; recognize MySQL's `geomcollection` name.
+- Schema dumps now omit `limit: {srid: 0}` for unrestricted columns. Explicit SRID 0 remains a constraint. Regenerate schema dumps/caches from the live database; an older incorrect dump cannot recover lost constraints.
+- Always use longitude/latitude axis order when writing geographic values, including SRIDs outside the previous five-entry list. Existing stored values are not modified. Inspect affected columns using `ST_Longitude`/`ST_Latitude` against known source coordinates. After backup and validation, `ST_SwapXY` can repair rows confirmed to be reversed; do not apply it to all rows indiscriminately.
+- Isolate spatial types from plain Trilogy connections and honor registered factories on database reads without adding registrations per connection. Keep existing geographic factory defaults.
+- Restore upstream spatial expression signatures/results and quote scalar function arguments for Rails 8.1.
+- Retain GeoJSON input with an actionable error if its optional dependency is missing; pass hashes directly to the decoder to avoid JSON parser version coupling. Invalid spatial string casting and legacy no-op migration options remain unchanged.
+
+### Maintenance
+
+- Use randomized tests with ActiveRecord deprecations treated as errors. Add SQL injection, metadata/cache, DDL round-trip, axis-order, factory, and adapter coexistence regressions.
+- Remove legacy connection/dependency-loader overrides and the no-op `db:trilogis:setup` task; Rails native loading and database tasks remain.
+- Replace custom build/release wrappers with standard Bundler tasks. Keep only MySQL in Compose and check authenticated TCP readiness.
+- Remove unused spatial visitor callbacks, the duplicate instance SQL-type parser, obsolete spatial-column hooks, and the unused Docker initialization script. Test the real type constructor and WKT/EWKT/MySQL binary paths.
+- Update the remaining `multi_json` development dependency to 1.21.2.
+- Lock development dependencies; add dependency audits, monthly grouped dependency updates, and a three-cell CI matrix with default MySQL authentication.
+
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
