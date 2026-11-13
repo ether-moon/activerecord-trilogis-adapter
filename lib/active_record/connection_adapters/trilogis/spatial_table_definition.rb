@@ -53,36 +53,30 @@ module ActiveRecord
       class TableDefinition < ActiveRecord::ConnectionAdapters::MySQL::TableDefinition
         include ColumnMethods
 
-        # Override column to handle spatial types
         def column(name, type, index: nil, **options)
-          # Store spatial-specific options before processing
-          spatial_options = {
-            srid: options.delete(:srid),
-            has_m: options.delete(:has_m),
-            has_z: options.delete(:has_z),
-            geographic: options.delete(:geographic)
-          }.compact
+          index = { type: :spatial } if TrilogisAdapter.spatial_type(type) && [true, :spatial].include?(index)
+          super
+        end
 
-          # Call super to create column definition
-          result = super
-
-          # Add spatial options back to the column definition if it's a spatial type
-          if spatial_type?(type) && (col = @columns_hash[name.to_s])
-            spatial_options.each do |key, value|
-              col.options[key] = value
+        def new_column_definition(name, type, **options)
+          if (spatial_type = TrilogisAdapter.spatial_type(type))
+            type = spatial_type.to_sym
+            # Retain legacy no-op options for existing migrations.
+            options.except!(:has_z, :has_m, :geographic)
+            options.delete(:default)
+            if options[:limit].is_a?(Hash)
+              limit = options.delete(:limit)
+              type = TrilogisAdapter.spatial_type(limit[:type]).to_sym if limit[:type]
+              options[:srid] = limit[:srid] unless options.key?(:srid)
             end
           end
-
-          # Add spatial index if requested
-          @indexes << [name, { type: :spatial }] if index && spatial_type?(type) && [true, :spatial].include?(index)
-
-          result
+          super
         end
 
         private
 
-        def spatial_type?(type)
-          TrilogisAdapter::SPATIAL_COLUMN_TYPES.include?(type.to_s)
+        def valid_column_definition_options
+          super + [:srid]
         end
       end
     end

@@ -5,7 +5,7 @@ require_relative "test_helper"
 class AxisOrderTest < ActiveSupport::TestCase
   def setup
     super
-    @connection = SpatialModel.connection
+    @connection = SpatialModel.lease_connection
   end
 
   def test_axis_order_constant_defined
@@ -26,17 +26,16 @@ class AxisOrderTest < ActiveSupport::TestCase
     assert_match(/'axis-order=long-lat'/, quoted) # axis-order should be included
   end
 
-  def test_quote_without_axis_order_for_planar_srid
+  def test_quote_axis_order_is_accepted_for_planar_srid
     # Create a point with SRID 3857 (planar/Web Mercator)
     factory = RGeo::Cartesian.factory(srid: 3857)
     point = factory.point(15_565_731, 4_257_421) # Tokyo in Web Mercator
 
     quoted = @connection.quote(point)
 
-    # For non-geographic SRIDs, should use ST_GeomFromWKB without axis-order
     assert_match(/ST_GeomFromWKB/, quoted)
     assert_match(/3857/, quoted) # SRID should be included
-    refute_match(/'axis-order=long-lat'/, quoted) # no axis-order for planar
+    assert_match(/'axis-order=long-lat'/, quoted)
   end
 
   def test_arel_visitor_includes_axis_order
@@ -56,7 +55,7 @@ class AxisOrderTest < ActiveSupport::TestCase
     assert_match(/'axis-order=long-lat'/, result) # axis-order should be included
   end
 
-  def test_wkt_string_without_srid_no_axis_order
+  def test_wkt_string_without_srid_uses_long_lat
     visitor = Arel::Visitors::Trilogis.new(@connection)
     collector = Arel::Collectors::SQLString.new
 
@@ -67,9 +66,8 @@ class AxisOrderTest < ActiveSupport::TestCase
     result = collector.value
 
     # Verify ST_GeomFromText with correct WKT and SRID 0
-    assert_match(/ST_GeomFromText\('POINT\(139.7 35.7\)', 0\)$/, result)
-    # Ensure no axis-order for non-geographic SRID
-    refute_match(/'axis-order=long-lat'/, result)
+    assert_match(/ST_GeomFromText\('POINT\(139.7 35.7\)', 0, 'axis-order=long-lat'\)$/, result)
+    assert_match(/'axis-order=long-lat'/, result)
   end
 
   def test_ewkt_string_with_srid_includes_axis_order
@@ -89,7 +87,7 @@ class AxisOrderTest < ActiveSupport::TestCase
 
   def test_geographic_coordinates_work_correctly_end_to_end
     # End-to-end test: Create table, save geographic point, verify coordinates
-    SpatialModel.connection.create_table(:spatial_models, force: true) do |t|
+    SpatialModel.lease_connection.create_table(:spatial_models, force: true) do |t|
       t.point :location, srid: 4326
     end
     SpatialModel.reset_column_information
@@ -109,10 +107,10 @@ class AxisOrderTest < ActiveSupport::TestCase
     assert_in_delta 35.7, obj2.location.latitude, 0.01
     assert_equal 4326, obj2.location.srid
   ensure
-    SpatialModel.connection.drop_table(:spatial_models, if_exists: true)
+    SpatialModel.lease_connection.drop_table(:spatial_models, if_exists: true)
   end
 
-  def test_arel_visitor_no_axis_order_for_non_geographic_srid
+  def test_arel_visitor_axis_order_is_accepted_for_non_geographic_srid
     visitor = Arel::Visitors::Trilogis.new(@connection)
     collector = Arel::Collectors::SQLString.new
 
@@ -126,6 +124,22 @@ class AxisOrderTest < ActiveSupport::TestCase
 
     assert_match(/ST_GeomFromText/, result)
     assert_match(/3857/, result) # SRID should be included
-    refute_match(/'axis-order=long-lat'/, result) # No axis-order for non-geographic
+    assert_match(/'axis-order=long-lat'/, result)
+  end
+
+  def test_unlisted_geographic_srid_keeps_longitude_latitude_in_all_write_paths
+    [4612, 6668].each do |srid|
+      point = RGeo::Cartesian.factory(srid: srid).point(35, 45)
+      expressions = [
+        @connection.quote(point),
+        @connection.visitor.compile(Arel.spatial(point)),
+        @connection.visitor.compile(Arel.spatial("SRID=#{srid};POINT(35 45)"))
+      ]
+      expressions.each do |expression|
+        values = @connection.select_rows("SELECT ST_Longitude(#{expression}), ST_Latitude(#{expression})").first
+
+        assert_equal [35.0, 45.0], values.map(&:to_f)
+      end
+    end
   end
 end

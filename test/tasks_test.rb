@@ -46,7 +46,7 @@ class TasksTest < ActiveSupport::TestCase
   def test_empty_schema_dump
     setup_database_tasks
     File.open(tmp_sql_filename, "w:utf-8") do |file|
-      ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection, file)
+      ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection_pool, file)
     end
     data = File.read(tmp_sql_filename)
 
@@ -60,7 +60,7 @@ class TasksTest < ActiveSupport::TestCase
       t.spatial "object2", srid: connection.default_srid, type: "geometry"
     end
     File.open(tmp_sql_filename, "w:utf-8") do |file|
-      ActiveRecord::SchemaDumper.dump(connection, file)
+      ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection_pool, file)
     end
     data = File.read(tmp_sql_filename)
 
@@ -77,7 +77,7 @@ class TasksTest < ActiveSupport::TestCase
       t.spatial "latlon2", srid: 4326, type: "point"
     end
     File.open(tmp_sql_filename, "w:utf-8") do |file|
-      ActiveRecord::SchemaDumper.dump(connection, file)
+      ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection_pool, file)
     end
     data = File.read(tmp_sql_filename)
 
@@ -94,7 +94,7 @@ class TasksTest < ActiveSupport::TestCase
     end
     connection.add_index :spatial_test, :latlon, type: :spatial
     File.open(tmp_sql_filename, "w:utf-8") do |file|
-      ActiveRecord::SchemaDumper.dump(connection, file)
+      ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection_pool, file)
     end
     data = File.read(tmp_sql_filename)
 
@@ -113,7 +113,7 @@ class TasksTest < ActiveSupport::TestCase
   end
 
   def connection
-    ActiveRecord::Base.connection
+    ActiveRecord::Base.lease_connection
   end
 
   def tmp_sql_filename

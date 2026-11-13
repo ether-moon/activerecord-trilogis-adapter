@@ -1,5 +1,10 @@
 # frozen_string_literal: true
 
+if ENV["COVERAGE"]
+  require "simplecov"
+  SimpleCov.start { add_filter "/test/" }
+end
+
 require "minitest/autorun"
 require "minitest/pride"
 require "activerecord-trilogis-adapter"
@@ -23,34 +28,28 @@ module ActiveRecord
   end
 end
 
-# rubocop:disable Style/OneClassPerFile
+ActiveRecord::Base.establish_test_connection
+ActiveRecord.deprecator.behavior = :raise
 
 class SpatialModel < ActiveRecord::Base
-  establish_test_connection
 end
 
 class SpatialMultiModel < ActiveRecord::Base
-  establish_test_connection
 end
 
 module ActiveSupport
   class TestCase
-    self.test_order = :sorted
+    self.test_order = :random
 
     def setup
-      # Clean up any existing tables before each test
+      @factory_registry = spatial_factory_store.registry.dup
       cleanup_tables
-      # Clear spatial column cache to prevent test pollution
-      clear_spatial_caches
-      # Reset column information for models
-      reset_model_columns
+      ActiveRecord::Base.descendants.each(&:reset_column_information)
     end
 
     def teardown
-      # Clean up tables after each test
       cleanup_tables
-      # Clear spatial column cache
-      clear_spatial_caches
+      spatial_factory_store.registry = @factory_registry
     end
 
     def factory
@@ -68,32 +67,11 @@ module ActiveSupport
     private
 
     def cleanup_tables
-      return unless ActiveRecord::Base.connected?
-
-      connection = ActiveRecord::Base.connection
+      connection = ActiveRecord::Base.lease_connection
       %w[spatial_models spatial_multi_models foo_bars spatial_test].each do |table|
-        connection.drop_table(table) if connection.table_exists?(table)
-      rescue ActiveRecord::StatementInvalid
-        # Ignore errors during cleanup
+        connection.drop_table(table, if_exists: true)
       end
-    end
-
-    def clear_spatial_caches
-      return unless ActiveRecord::Base.connected?
-
-      connection = ActiveRecord::Base.connection
-      # Clear the spatial column info cache if the connection supports it
-      connection.clear_spatial_cache! if connection.respond_to?(:clear_spatial_cache!)
-    end
-
-    def reset_model_columns
-      # Reset column information for all models to prevent stale column data
-      SpatialModel.reset_column_information
-      SpatialMultiModel.reset_column_information
-    rescue StandardError
-      # Ignore if models haven't been set up yet
+      connection.schema_cache.clear!
     end
   end
 end
-
-# rubocop:enable Style/OneClassPerFile

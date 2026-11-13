@@ -2,81 +2,67 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   lint:
-    name: RuboCop
+    name: Lint and dependency audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.4'
+          ruby-version: '3.3'
           bundler-cache: true
-
-      - name: Run RuboCop
-        run: bundle exec rubocop
+      - run: bundle exec rubocop
+      - run: bundle exec bundler-audit check --update
+      - run: bundle exec rake build
 
   test:
-    name: Test (Ruby ${{ matrix.ruby }})
+    name: Ruby ${{ matrix.ruby }} / MySQL ${{ matrix.mysql }}
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        ruby: ['3.2', '3.3', '3.4', '4.0']
-
+        include:
+          - ruby: '3.3'
+            mysql: '8.0'
+          - ruby: '4.0'
+            mysql: '8.0'
+          - ruby: '4.0'
+            mysql: '8.4'
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:${{ matrix.mysql }}
         env:
           MYSQL_ROOT_PASSWORD: password
+          MYSQL_ROOT_HOST: '%'
           MYSQL_DATABASE: trilogis_adapter_test
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping"
-          --health-interval=10s
+          --health-cmd="mysql --protocol=TCP -h 127.0.0.1 -uroot -ppassword trilogis_adapter_test -e 'SELECT 1'"
+          --health-interval=5s
           --health-timeout=5s
-          --health-retries=5
-
+          --health-retries=30
+          --health-start-period=20s
     env:
       MYSQL_HOST: 127.0.0.1
       MYSQL_USER: root
       MYSQL_PASSWORD: password
       MYSQL_DATABASE: trilogis_adapter_test
-      RAILS_ENV: test
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-
-      - name: Wait for MySQL
-        run: |
-          for i in {1..30}; do
-            if mysqladmin ping -h 127.0.0.1 -u root -ppassword --silent; then
-              echo "MySQL is ready"
-              break
-            fi
-            echo "Waiting for MySQL... ($i/30)"
-            sleep 2
-          done
-
-      - name: Setup database
-        run: |
-          mysql -h 127.0.0.1 -u root -ppassword -e "ALTER USER 'root'@'%' IDENTIFIED WITH mysql_native_password BY 'password';"
-          mysql -h 127.0.0.1 -u root -ppassword -e "CREATE DATABASE IF NOT EXISTS trilogis_adapter_test;"
-          mysql -h 127.0.0.1 -u root -ppassword -e "FLUSH PRIVILEGES;"
-
-      - name: Run tests
-        run: bundle exec rake test
+      - run: bundle exec rake test

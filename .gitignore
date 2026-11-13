@@ -29,7 +29,6 @@
 .tool-versions
 
 # Bundler
-Gemfile.lock
 /gemfiles/*.gemfile.lock
 /vendor/bundle/
 

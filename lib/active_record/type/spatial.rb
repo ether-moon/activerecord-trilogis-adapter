@@ -6,7 +6,6 @@ module ActiveRecord
       attr_reader :geo_type, :srid
 
       def initialize(sql_type = "geometry")
-        @sql_type = sql_type
         @geo_type, @srid = self.class.parse_sql_type(sql_type)
       end
 
@@ -87,32 +86,6 @@ module ActiveRecord
 
       private
 
-      def parse_sql_type(sql_type)
-        original_sql_type = sql_type.to_s
-        sql_type = sql_type.to_s.downcase
-
-        # Only parse known spatial types
-        # For non-spatial types, return them unchanged
-        spatial_types = %w[geometry point linestring polygon multipoint multilinestring multipolygon geometrycollection]
-
-        # Check if it's a spatial type
-        base_type = sql_type.split("(").first
-        return [original_sql_type, 0] unless spatial_types.include?(base_type)
-
-        # Extract geometry type and SRID from SQL type
-        # Examples: "geometry", "point", "linestring", "geometry(Point,4326)"
-        if sql_type =~ /(\w+)(?:\((\w+)(?:,(\d+))?\))?/
-          geo_type = Regexp.last_match(1)
-          sub_type = Regexp.last_match(2)
-          srid = Regexp.last_match(3).to_i
-
-          geo_type = sub_type.downcase if sub_type
-          [geo_type, srid]
-        else
-          [sql_type, 0]
-        end
-      end
-
       def parse_string(string)
         return nil if string.blank?
 
@@ -121,12 +94,7 @@ module ActiveRecord
           srid = Regexp.last_match(1).to_i
           wkt = Regexp.last_match(2)
 
-          # Use SpatialFactoryStore to get the appropriate factory
-          geo_factory = RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
-            geo_type: @geo_type,
-            sql_type: @sql_type,
-            srid: srid
-          )
+          geo_factory = spatial_factory(srid)
           begin
             return RGeo::WKRep::WKTParser.new(geo_factory, support_ewkt: true, default_srid: srid).parse(wkt)
           rescue RGeo::Error::ParseError
@@ -134,12 +102,11 @@ module ActiveRecord
           end
         end
 
-        # Try to parse as WKT
-        if string.match?(/^[A-Z]/i)
-          parse_wkt(string)
-        # Try to parse as WKB hex
-        elsif string.match?(/^[0-9a-fA-F]+$/)
+        # Hex can start with a letter, including MySQL's SRID 4326 prefix (e6100000).
+        if string.match?(/\A[0-9a-fA-F]+\z/)
           parse_wkb_hex(string)
+        elsif string.match?(/^[A-Z]/i)
+          parse_wkt(string)
         end
       end
 
@@ -152,84 +119,27 @@ module ActiveRecord
       end
 
       def parse_wkb_hex(hex_string)
-        return nil if hex_string.nil? || hex_string.empty?
+        return nil if hex_string.length.odd?
 
-        binary = convert_hex_to_binary(hex_string)
-        parse_binary_with_srid(binary)
-      rescue RGeo::Error::ParseError, ArgumentError
-        nil
-      end
-
-      def convert_hex_to_binary(hex_string)
-        # MySQL returns WKB as hex string
-        [hex_string].pack("H*")
-      end
-
-      def parse_binary_with_srid(binary)
-        # MySQL internal format: first 4 bytes are SRID (little-endian), then WKB
-        if binary.length >= 5
-          srid = extract_srid(binary)
-          wkb_data = binary[4..]
-          parse_wkb_with_factory(wkb_data, srid)
-        else
-          parse_standard_wkb(binary)
-        end
-      end
-
-      def extract_srid(binary)
-        # V = unsigned 32-bit little-endian
-        binary[0..3].unpack1("V")
-      end
-
-      def parse_wkb_with_factory(wkb_data, srid)
-        geo_factory = create_factory_for_srid(srid)
-        RGeo::WKRep::WKBParser.new(geo_factory, support_ewkb: true, default_srid: srid).parse(wkb_data)
-      end
-
-      def create_factory_for_srid(srid)
-        # Geographic SRIDs (4326, 4269, 4267, 4258, 4019) need spherical factory
-        if geographic_srid?(srid)
-          RGeo::Geographic.spherical_factory(srid: srid)
-        else
-          RGeo::Cartesian.preferred_factory(srid: srid)
-        end
-      end
-
-      def parse_standard_wkb(binary)
-        # Fall back to standard WKB parsing with EWKB support
-        RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary)
-      end
-
-      # Check if SRID represents a geographic coordinate system
-      def geographic_srid?(srid)
-        # Common geographic SRIDs that use latitude-longitude
-        [4326, 4269, 4267, 4258, 4019].include?(srid)
+        parse_wkb_binary([hex_string].pack("H*"))
       end
 
       def parse_wkb_binary(binary_string)
         return nil if binary_string.nil? || binary_string.empty?
 
-        # MySQL internal format: first 4 bytes are SRID (little-endian), then WKB
-        if binary_string.length >= 5
-          srid = binary_string[0..3].unpack1("V") # V = unsigned 32-bit little-endian
-          wkb_data = binary_string[4..]
-
-          # Create appropriate factory based on SRID
-          # Geographic SRIDs (4326, 4269, 4267, 4258, 4019) need spherical factory
-          geo_factory = if geographic_srid?(srid)
-                          RGeo::Geographic.spherical_factory(srid: srid)
-                        else
-                          RGeo::Cartesian.preferred_factory(srid: srid)
-                        end
-
-          # Support EWKB format
-          RGeo::WKRep::WKBParser.new(geo_factory, support_ewkb: true, default_srid: srid).parse(wkb_data)
-        else
-          # Fall back to standard WKB parsing with EWKB support
-          RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary_string)
+        # MySQL binary values contain a four-byte SRID prefix followed by WKB.
+        if binary_string.bytesize >= 5
+          srid = binary_string.unpack1("V")
+          begin
+            parser = RGeo::WKRep::WKBParser.new(spatial_factory(srid), support_ewkb: true, default_srid: srid)
+            return parser.parse(binary_string.byteslice(4..))
+          rescue RGeo::Error::ParseError, ArgumentError
+            # Standard WKB has no MySQL prefix; parse the complete input below.
+          end
         end
+
+        RGeo::WKRep::WKBParser.new(spatial_factory, support_ewkb: true, default_srid: @srid).parse(binary_string)
       rescue RGeo::Error::ParseError, ArgumentError
-        # Failed to parse, return nil
         nil
       end
 
@@ -240,27 +150,22 @@ module ActiveRecord
         normalized_hash = hash.transform_keys(&:to_s)
         return unless normalized_hash["type"] && normalized_hash["coordinates"]
 
-        RGeo::GeoJSON.decode(normalized_hash.to_json, geo_factory: spatial_factory)
-      end
-
-      def spatial_factory
-        # Rails 8.1 freezes type objects for Ractor compatibility
-        # If frozen, create factory without caching to avoid FrozenError
-        if frozen?
-          return RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
-            geo_type: @geo_type,
-            sql_type: @sql_type,
-            srid: @srid
-          )
+        unless defined?(RGeo::GeoJSON)
+          raise ArgumentError, 'GeoJSON input requires the rgeo-geojson gem and require "rgeo/geo_json"'
         end
 
-        # For non-frozen objects, use instance variable caching
-        @spatial_factories ||= {}
-        @spatial_factories[@srid] ||= RGeo::ActiveRecord::SpatialFactoryStore.instance.factory(
-          geo_type: @geo_type,
-          sql_type: @sql_type,
-          srid: @srid
-        )
+        RGeo::GeoJSON.decode(normalized_hash, geo_factory: spatial_factory)
+      end
+
+      def spatial_factory(srid = @srid)
+        store = RGeo::ActiveRecord::SpatialFactoryStore.instance
+        attrs = { geo_type: @geo_type, sql_type: @geo_type, srid: srid }
+        registered = store.registry.any? do |entry|
+          entry.attrs.any? && entry.attrs.all? { |key, value| attrs[key] == value }
+        end
+        # Preserve the existing geographic defaults without mutating the global registry.
+        attrs[:sql_type] = "geography" if !registered && [4326, 4269, 4267, 4258, 4019].include?(srid)
+        store.factory(attrs)
       end
     end
   end

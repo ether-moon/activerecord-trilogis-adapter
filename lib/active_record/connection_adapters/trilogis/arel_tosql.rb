@@ -48,48 +48,36 @@ module Arel
         end
       end
 
-      def visit_spatial_value(node, collector)
-        case node
-        when RGeo::Feature::Instance
-          visit_RGeo_Feature_Instance(node, collector)
-        when String
-          if node.match?(/^[A-Z]/) # WKT string
-            visit_wkt_string(node, collector)
-          else
-            super
-          end
-        else
-          super
-        end
-      end
-
       def visit_RGeo_Feature_Instance(node, collector)
         srid = node.srid || 0
         wkt = node.as_text
 
-        # MySQL ST_GeomFromText supports axis-order option for geographic SRIDs
-        # This ensures longitude-latitude order for SRID 4326 (WGS84)
-        if srid == 4326
-          collector << "ST_GeomFromText('#{wkt}', #{srid}, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
-        else
-          collector << "ST_GeomFromText('#{wkt}', #{srid})"
-        end
+        append_geometry(wkt, srid, collector)
       end
 
       def visit_wkt_string(wkt, collector)
-        # Extract SRID if present in EWKT format
-        if wkt =~ /^SRID=(\d+);(.+)$/i
-          srid = Regexp.last_match(1).to_i
-          clean_wkt = Regexp.last_match(2)
-          # Use axis-order for geographic SRID
-          if srid == 4326
-            collector << "ST_GeomFromText('#{clean_wkt}', #{srid}, #{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
-          else
-            collector << "ST_GeomFromText('#{clean_wkt}', #{srid})"
-          end
+        if (match = /\ASRID=(\d+);(.*)\z/im.match(wkt))
+          append_geometry(match[2], match[1].to_i, collector)
         else
-          collector << "ST_GeomFromText('#{wkt}', 0)"
+          append_geometry(wkt, 0, collector)
         end
+      end
+
+      def append_geometry(wkt, srid, collector)
+        collector << "ST_GeomFromText(#{quote(wkt)}, #{srid}, " \
+                     "#{ActiveRecord::ConnectionAdapters::TrilogisAdapter::AXIS_ORDER_LONG_LAT})"
+      end
+
+      def visit_RGeo_ActiveRecord_SpatialNamedFunction(node, collector)
+        node = node.dup
+        node.expressions = node.expressions.each_with_index.map do |argument, index|
+          if node.spatial_argument?(index) || argument.is_a?(RGeo::ActiveRecord::SpatialConstantNode)
+            argument
+          else
+            Arel::Nodes.build_quoted(argument)
+          end
+        end
+        super
       end
 
       # Handle spatial function calls
@@ -139,15 +127,6 @@ module Arel
           # For numeric or other values
           collector << quote(value)
         end
-      end
-
-      # Support for spatial predicates in WHERE clauses
-      def visit_spatial_predicate(predicate_name, left, right, collector)
-        collector << "#{SPATIAL_FUNCTIONS[predicate_name]}("
-        visit(left, collector)
-        collector << ", "
-        visit(right, collector)
-        collector << ")"
       end
     end
   end

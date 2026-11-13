@@ -8,16 +8,16 @@ class BasicTest < ActiveSupport::TestCase
   end
 
   def test_trilogis_available
-    assert_equal "Trilogis", SpatialModel.connection.adapter_name
+    assert_equal "Trilogis", SpatialModel.lease_connection.adapter_name
   end
 
   def test_arel_visitor
-    visitor = Arel::Visitors::Trilogis.new(SpatialModel.connection)
+    visitor = Arel::Visitors::Trilogis.new(SpatialModel.lease_connection)
     node = RGeo::ActiveRecord::SpatialConstantNode.new("POINT (1.0 2.0)")
     collector = Arel::Collectors::PlainString.new
     visitor.accept(node, collector)
 
-    assert_equal "ST_GeomFromText('POINT (1.0 2.0)', 0)", collector.value
+    assert_equal "ST_GeomFromText('POINT (1.0 2.0)', 0, 'axis-order=long-lat')", collector.value
   end
 
   def test_set_and_get_point
@@ -94,7 +94,7 @@ class BasicTest < ActiveSupport::TestCase
 
   def test_custom_factory
     klass = SpatialModel
-    klass.connection.create_table(:spatial_models, force: true) do |t|
+    klass.lease_connection.create_table(:spatial_models, force: true) do |t|
       t.polygon(:area, srid: 3857)
     end
     klass.reset_column_information
@@ -116,7 +116,7 @@ class BasicTest < ActiveSupport::TestCase
     )
 
     klass = SpatialModel
-    klass.connection.create_table(:spatial_models, force: true) do |t|
+    klass.lease_connection.create_table(:spatial_models, force: true) do |t|
       t.column(:shape, :geometry)
       t.linestring(:path, srid: 3857)
       t.point(:latlon, null: false, srid: 4326)
@@ -124,7 +124,7 @@ class BasicTest < ActiveSupport::TestCase
     klass.reset_column_information
 
     assert_includes klass.columns.map(&:name), "shape"
-    klass.connection.change_table(:spatial_models) do |t|
+    klass.lease_connection.change_table(:spatial_models) do |t|
       t.index(:latlon, type: :spatial)
     end
 
@@ -156,7 +156,7 @@ class BasicTest < ActiveSupport::TestCase
   end
 
   def test_multi_polygon_column
-    SpatialModel.connection.create_table(:spatial_models, force: true) do |t|
+    SpatialModel.lease_connection.create_table(:spatial_models, force: true) do |t|
       t.column "m_poly", :multi_polygon
     end
     SpatialModel.reset_column_information
@@ -177,7 +177,7 @@ class BasicTest < ActiveSupport::TestCase
   private
 
   def create_model
-    SpatialModel.connection.create_table(:spatial_models, force: true) do |t|
+    SpatialModel.lease_connection.create_table(:spatial_models, force: true) do |t|
       t.column "latlon", :point, srid: 3857
       t.column "latlon_geo", :point, srid: 4326
     end

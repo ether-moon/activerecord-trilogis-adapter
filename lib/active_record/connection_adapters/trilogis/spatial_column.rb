@@ -13,7 +13,7 @@ module ActiveRecord
 
     module Trilogis
       class SpatialColumn < ActiveRecord::ConnectionAdapters::MySQL::Column
-        attr_reader :geometric_type, :srid, :geo_type_name
+        attr_reader :geometric_type, :srid, :geo_type_name, :srid_constraint
 
         # Map SQL type strings to RGeo type classes
         GEOMETRIC_TYPES = {
@@ -39,12 +39,13 @@ module ActiveRecord
             # Use spatial info from INFORMATION_SCHEMA if available
             @geo_type_name = spatial_info[:type].to_s.downcase
             @geometric_type = GEOMETRIC_TYPES[@geo_type_name] || RGeo::Feature::Geometry
-            @srid = spatial_info[:srid] || 0
+            @srid_constraint = spatial_info[:srid]
+            @srid = @srid_constraint || 0
             @has_z = spatial_info[:has_z] || false
             @has_m = spatial_info[:has_m] || false
           else
             # Fallback to extracting from SQL type
-            @geo_type_name = sql_type_metadata.sql_type.to_s.downcase
+            @geo_type_name = TrilogisAdapter.spatial_type(sql_type_metadata.sql_type)
             type_info = Type::Spatial.new(@geo_type_name)
             @geometric_type = GEOMETRIC_TYPES[@geo_type_name] || RGeo::Feature::Geometry
             @srid = type_info.srid || 0
@@ -57,7 +58,7 @@ module ActiveRecord
           # Guard against nil sql_type_metadata during type registration
           return false unless sql_type_metadata&.sql_type
 
-          TrilogisAdapter::SPATIAL_COLUMN_TYPES.include?(sql_type_metadata.sql_type.downcase)
+          !TrilogisAdapter.spatial_type(sql_type_metadata.sql_type).nil?
         end
 
         def has_z?
@@ -86,7 +87,31 @@ module ActiveRecord
 
           # Only include SRID in limit
           # Type information is in the type() method
-          { srid: @srid }.compact
+          { srid: @srid_constraint } unless @srid_constraint.nil?
+        end
+
+        def ==(other)
+          super && other.is_a?(self.class) &&
+            srid_constraint == other.srid_constraint && geo_type_name == other.geo_type_name
+        end
+        alias eql? ==
+
+        def hash
+          [super, srid_constraint, geo_type_name].hash
+        end
+
+        def encode_with(coder)
+          super
+          coder["srid_constraint"] = @srid_constraint
+          coder["geo_type_name"] = @geo_type_name
+        end
+
+        def init_with(coder)
+          super
+          @srid_constraint = coder["srid_constraint"]
+          @srid = @srid_constraint || 0
+          @geo_type_name = coder["geo_type_name"]
+          @geometric_type = GEOMETRIC_TYPES.fetch(@geo_type_name, RGeo::Feature::Geometry)
         end
 
         # Override default to always return nil for spatial columns
